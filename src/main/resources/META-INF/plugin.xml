@@ -1,0 +1,28 @@
+<idea-plugin>
+    <id>com.github.tlvhoang06.spring-erd-visualizer-plugin</id>
+    <name>Spring ERD Visualizer</name>
+    <vendor email="tlvhoang06@github.com">tlvhoang06</vendor>
+
+    <description><![CDATA[
+      Visualizes JPA/Hibernate Java entities as an interactive ERD directly inside IntelliJ IDEA.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Spring ERD"
+                    anchor="right"
+                    factoryClass="com.github.tlvhoang06.springerdvisualizer.toolwindow.ErdToolWindowFactory"/>
+    </extensions>
+
+    <actions>
+        <action id="SpringErdVisualizer.GenerateErd"
+                class="com.github.tlvhoang06.springerdvisualizer.action.GenerateErdAction"
+                text="Generate ERD"
+                description="Generates an ERD visualization from JPA entities">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

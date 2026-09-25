@@ -1,0 +1,18 @@
+# Agent instructions
+agent-instruction.md
+
+# IntelliJ Platform cache
+.intellijPlatform/
+
+# Build output & IDE
+target/
+build/
+.gradle/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Logs
+*.log
+
