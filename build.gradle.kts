@@ -36,6 +36,10 @@ intellijPlatform {
             name = "tlvhoang06"
         }
         description = "Visualizes JPA/Hibernate Java entities as an interactive ERD directly inside IntelliJ IDEA."
+        ideaVersion {
+            sinceBuild = "243"
+            untilBuild = provider { null }
+        }
     }
 }
 
