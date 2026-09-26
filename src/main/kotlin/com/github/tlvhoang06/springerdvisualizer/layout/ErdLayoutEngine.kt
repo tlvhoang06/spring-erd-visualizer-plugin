@@ -13,8 +13,9 @@ object ErdLayoutEngine {
 
     const val MIN_CARD_WIDTH = 220
     const val MAX_CARD_WIDTH = 360
-    const val HEADER_HEIGHT = 42
-    const val ROW_HEIGHT = 22
+    const val HEADER_HEIGHT = 44
+    const val ROW_HEIGHT = 20
+    const val SEPARATOR_GAP = 6
     const val MIN_CARD_HEIGHT = 70
     const val H_GAP = 80
     const val V_GAP = 70
@@ -33,8 +34,21 @@ object ErdLayoutEngine {
     }
 
     fun calculateCardHeight(entity: EntityModel): Int {
-        val fieldCount = entity.fields.size
-        return HEADER_HEIGHT + Math.max(1, fieldCount) * ROW_HEIGHT + 15
+        val pkCount = entity.fields.count { it.isPrimaryKey }
+        val normalCount = entity.fields.size - pkCount
+        var height = HEADER_HEIGHT
+
+        if (pkCount > 0) {
+            height += SEPARATOR_GAP + pkCount * ROW_HEIGHT
+        }
+        if (normalCount > 0) {
+            height += SEPARATOR_GAP + normalCount * ROW_HEIGHT
+        }
+        if (pkCount == 0 && normalCount == 0) {
+            height += ROW_HEIGHT
+        }
+
+        return height + 10
     }
 
     fun layoutGraph(graph: ErdGraphModel): Map<String, NodeBounds> {
@@ -70,7 +84,6 @@ object ErdLayoutEngine {
     }
 
     private fun sortEntitiesByConnectivity(graph: ErdGraphModel): List<EntityModel> {
-        val entityMap = graph.entities.associateBy { it.name }
         val degreeMap = mutableMapOf<String, Int>()
 
         for (rel in graph.deduplicatedRelationships()) {
@@ -78,7 +91,6 @@ object ErdLayoutEngine {
             degreeMap[rel.targetEntity] = (degreeMap[rel.targetEntity] ?: 0) + 1
         }
 
-        // Sort entities with more connections first, so central tables appear together
         return graph.entities.sortedByDescending { degreeMap[it.name] ?: 0 }
     }
 }
