@@ -80,13 +80,19 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
 
     private fun refreshDiagram(project: Project, canvasPanel: ErdCanvasPanel, statusLabel: JLabel) {
         statusLabel.text = "Scanning project entities..."
-        ApplicationManager.getApplication().runReadAction {
-            val graph = ProjectEntityScanner.scanProjectEntities(project)
-            ApplicationManager.getApplication().invokeLater {
-                canvasPanel.setGraph(graph)
-                val entityCount = graph.entities.size
-                val relCount = graph.deduplicatedRelationships().size
-                statusLabel.text = "$entityCount Entities | $relCount Relationships"
+        ApplicationManager.getApplication().executeOnPooledThread {
+            ApplicationManager.getApplication().runReadAction {
+                val graph = ProjectEntityScanner.scanProjectEntities(project)
+                ApplicationManager.getApplication().invokeLater {
+                    canvasPanel.setGraph(graph)
+                    val entityCount = graph.entities.size
+                    val relCount = graph.deduplicatedRelationships().size
+                    if (entityCount == 0) {
+                        statusLabel.text = "0 Entities found"
+                    } else {
+                        statusLabel.text = "$entityCount Entities | $relCount Relationships"
+                    }
+                }
             }
         }
     }

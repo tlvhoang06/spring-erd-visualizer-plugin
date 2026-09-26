@@ -5,7 +5,10 @@ import com.github.tlvhoang06.springerdvisualizer.model.ErdGraphModel
 import com.github.tlvhoang06.springerdvisualizer.model.RelationshipModel
 import com.intellij.ide.highlighter.JavaFileType
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
@@ -16,15 +19,46 @@ object ProjectEntityScanner {
     fun scanProjectEntities(project: Project): ErdGraphModel {
         val entities = mutableListOf<EntityModel>()
         val allRelationships = mutableListOf<RelationshipModel>()
-
-        val scope = GlobalSearchScope.projectScope(project)
-        val javaFiles = FileTypeIndex.getFiles(JavaFileType.INSTANCE, scope)
         val psiManager = PsiManager.getInstance(project)
-        val fileIndex = ProjectFileIndex.getInstance(project)
 
-        for (vFile in javaFiles) {
-            // Ignore generated or excluded sources
-            if (fileIndex.isExcluded(vFile)) continue
+        val filesToScan = mutableSetOf<VirtualFile>()
+
+        // 1. Try FileTypeIndex with projectScope & allScope
+        try {
+            val projectScopeFiles = FileTypeIndex.getFiles(JavaFileType.INSTANCE, GlobalSearchScope.projectScope(project))
+            filesToScan.addAll(projectScopeFiles)
+
+            val allScopeFiles = FileTypeIndex.getFiles(JavaFileType.INSTANCE, GlobalSearchScope.allScope(project))
+            filesToScan.addAll(allScopeFiles)
+        } catch (_: Exception) {}
+
+        // 2. VFS Fallback if index returns empty (e.g. unindexed / unconfigured JDK project)
+        val basePath = project.basePath
+        if (basePath != null) {
+            val baseDir = LocalFileSystem.getInstance().findFileByPath(basePath)
+            if (baseDir != null) {
+                VfsUtilCore.visitChildrenRecursively(baseDir, object : VirtualFileVisitor<Void>() {
+                    override fun visitFile(file: VirtualFile): Boolean {
+                        if (file.isDirectory) {
+                            val name = file.name
+                            if (name == "target" || name == "build" || name == ".idea" || name == ".git" || name == "node_modules") {
+                                return false
+                            }
+                        } else if (file.extension == "java") {
+                            filesToScan.add(file)
+                        }
+                        return true
+                    }
+                })
+            }
+        }
+
+        // Process files
+        for (vFile in filesToScan) {
+            val path = vFile.path
+            if (path.contains("/target/") || path.contains("/build/") || path.contains("/.idea/") || path.contains("/.git/")) {
+                continue
+            }
 
             val psiFile = psiManager.findFile(vFile)
             if (psiFile is PsiJavaFile) {
