@@ -67,13 +67,17 @@ object RelationshipAnalyzer {
             if (parameters.isNotEmpty()) {
                 val genericType = parameters.first().presentableText
                 if (genericType.isNotBlank()) {
-                    return genericType
+                    return extractShortClassName(genericType)
                 }
             }
-            return type.presentableText
+            return extractShortClassName(type.presentableText)
         }
 
         return null
+    }
+
+    private fun extractShortClassName(rawType: String): String {
+        return rawType.substringBefore('<').substringAfterLast('.').trim()
     }
 
     private fun resolveJoinColumnName(field: PsiField): String? {

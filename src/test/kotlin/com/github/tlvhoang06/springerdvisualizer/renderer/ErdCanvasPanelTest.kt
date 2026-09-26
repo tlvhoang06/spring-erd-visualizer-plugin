@@ -44,7 +44,7 @@ class ErdCanvasPanelTest {
         val userBounds = layout["User"]!!.bounds
         val orderBounds = layout["Order"]!!.bounds
 
-        assertEquals(ErdLayoutEngine.CARD_WIDTH, userBounds.width)
+        assertEquals(ErdLayoutEngine.calculateCardWidth(userEntity), userBounds.width)
         assertTrue(userBounds.height > ErdLayoutEngine.MIN_CARD_HEIGHT)
     }
 
