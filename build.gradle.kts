@@ -47,6 +47,15 @@ kotlin {
     jvmToolchain(21)
 }
 
-tasks.test {
-    useJUnit()
+tasks {
+    test {
+        useJUnit()
+    }
+    buildSearchableOptions {
+        enabled = false
+    }
+    runIde {
+        jvmArgs("-Xms1024m", "-Xmx2048m")
+    }
 }
+

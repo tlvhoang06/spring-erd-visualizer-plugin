@@ -21,7 +21,7 @@
         <action id="SpringErdVisualizer.GenerateErd"
                 class="com.github.tlvhoang06.springerdvisualizer.action.GenerateErdAction"
                 text="Generate ERD"
-                icon="AllIcons.Actions.Diagram"
+                icon="AllIcons.General.Structure"
                 description="Generates an ERD visualization from JPA entities">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>

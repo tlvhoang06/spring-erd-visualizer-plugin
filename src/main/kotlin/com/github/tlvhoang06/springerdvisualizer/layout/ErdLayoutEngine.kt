@@ -11,14 +11,13 @@ data class NodeBounds(
 
 object ErdLayoutEngine {
 
-    const val MIN_CARD_WIDTH = 220
-    const val MAX_CARD_WIDTH = 360
-    const val HEADER_HEIGHT = 44
-    const val ROW_HEIGHT = 20
-    const val SEPARATOR_GAP = 6
+    const val MIN_CARD_WIDTH = 230
+    const val MAX_CARD_WIDTH = 380
+    const val HEADER_HEIGHT = 46
+    const val ROW_HEIGHT = 24
     const val MIN_CARD_HEIGHT = 70
-    const val H_GAP = 80
-    const val V_GAP = 70
+    const val H_GAP = 90
+    const val V_GAP = 80
 
     fun calculateCardWidth(entity: EntityModel): Int {
         var maxLen = entity.name.length + 4
@@ -26,29 +25,17 @@ object ErdLayoutEngine {
             maxLen = Math.max(maxLen, entity.tableName.length + 8)
         }
         for (field in entity.fields) {
-            val lineLen = field.name.length + field.type.length + 6
+            val lineLen = field.name.length + field.type.length + 8
             maxLen = Math.max(maxLen, lineLen)
         }
-        val computedWidth = maxLen * 8 + 40
+        val computedWidth = maxLen * 8 + 44
         return computedWidth.coerceIn(MIN_CARD_WIDTH, MAX_CARD_WIDTH)
     }
 
     fun calculateCardHeight(entity: EntityModel): Int {
-        val pkCount = entity.fields.count { it.isPrimaryKey }
-        val normalCount = entity.fields.size - pkCount
-        var height = HEADER_HEIGHT
-
-        if (pkCount > 0) {
-            height += SEPARATOR_GAP + pkCount * ROW_HEIGHT
-        }
-        if (normalCount > 0) {
-            height += SEPARATOR_GAP + normalCount * ROW_HEIGHT
-        }
-        if (pkCount == 0 && normalCount == 0) {
-            height += ROW_HEIGHT
-        }
-
-        return height + 10
+        val totalFields = entity.fields.size
+        val rowsCount = if (totalFields > 0) totalFields else 1
+        return HEADER_HEIGHT + rowsCount * ROW_HEIGHT
     }
 
     fun layoutGraph(graph: ErdGraphModel): Map<String, NodeBounds> {
