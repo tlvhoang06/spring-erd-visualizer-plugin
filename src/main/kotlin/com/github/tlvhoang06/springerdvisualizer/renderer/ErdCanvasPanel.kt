@@ -454,23 +454,39 @@ class ErdCanvasPanel : JPanel() {
             return
         }
 
-        val c1 = Point(sR.x + sR.width / 2, sR.y + sR.height / 2)
-        val c2 = Point(tR.x + tR.width / 2, tR.y + tR.height / 2)
-
-        // Calculate boundary intersection anchor points
-        val p1 = getPerimeterIntersection(sR, c2)
-        val p2 = getPerimeterIntersection(tR, c1)
+        // Determine orthogonal anchor points
+        val (p1, p2) = calculateOrthogonalAnchors(sR, tR)
 
         val strokeWidth = if (isHighlighted) 2.2f else 1.2f
         val lineColor = when {
             isHighlighted -> lineHighlightColor
-            isDimmed -> JBColor.namedColor("Component.borderColor", Color(100, 100, 100))
+            isDimmed -> JBColor(Color(80, 85, 95), Color(60, 65, 75))
             else -> lineNeutralColor
         }
 
         g2.color = lineColor
-        g2.stroke = BasicStroke(strokeWidth)
-        g2.drawLine(p1.x, p1.y, p2.x, p2.y)
+        g2.stroke = BasicStroke(strokeWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+
+        // Draw orthogonal path
+        val path = java.awt.geom.Path2D.Float()
+        path.moveTo(p1.x.toDouble(), p1.y.toDouble())
+
+        val midX = (p1.x + p2.x) / 2
+        val midY = (p1.y + p2.y) / 2
+
+        val isHorizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y)
+
+        if (isHorizontal) {
+            path.lineTo(midX.toDouble(), p1.y.toDouble())
+            path.lineTo(midX.toDouble(), p2.y.toDouble())
+            path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+        } else {
+            path.lineTo(p1.x.toDouble(), midY.toDouble())
+            path.lineTo(p2.x.toDouble(), midY.toDouble())
+            path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+        }
+
+        g2.draw(path)
 
         // Endpoint Cardinality Badges
         val (srcLabel, tgtLabel) = when (rel.type) {
@@ -480,8 +496,32 @@ class ErdCanvasPanel : JPanel() {
             RelationshipType.MANY_TO_MANY -> Pair("N", "M")
         }
 
-        drawCardinalityBadge(g2, p1, p2, srcLabel, isHighlighted)
-        drawCardinalityBadge(g2, p2, p1, tgtLabel, isHighlighted)
+        val far1 = if (isHorizontal) Point(midX, p1.y) else Point(p1.x, midY)
+        val far2 = if (isHorizontal) Point(midX, p2.y) else Point(p2.x, midY)
+
+        drawCardinalityBadge(g2, p1, far1, srcLabel, isHighlighted)
+        drawCardinalityBadge(g2, p2, far2, tgtLabel, isHighlighted)
+    }
+
+    private fun calculateOrthogonalAnchors(sR: Rectangle, tR: Rectangle): Pair<Point, Point> {
+        val sCenter = Point(sR.x + sR.width / 2, sR.y + sR.height / 2)
+        val tCenter = Point(tR.x + tR.width / 2, tR.y + tR.height / 2)
+
+        return if (Math.abs(sCenter.x - tCenter.x) >= Math.abs(sCenter.y - tCenter.y)) {
+            // Horizontal dominant relation: exit left/right sides
+            if (sCenter.x < tCenter.x) {
+                Pair(Point(sR.x + sR.width, sCenter.y), Point(tR.x, tCenter.y))
+            } else {
+                Pair(Point(sR.x, sCenter.y), Point(tR.x + tR.width, tCenter.y))
+            }
+        } else {
+            // Vertical dominant relation: exit top/bottom sides
+            if (sCenter.y < tCenter.y) {
+                Pair(Point(sCenter.x, sR.y + sR.height), Point(tCenter.x, tR.y))
+            } else {
+                Pair(Point(sCenter.x, sR.y), Point(tCenter.x, tR.y + tR.height))
+            }
+        }
     }
 
     private fun drawCardinalityBadge(g2: Graphics2D, endPoint: Point, farPoint: Point, label: String, isHighlighted: Boolean) {
