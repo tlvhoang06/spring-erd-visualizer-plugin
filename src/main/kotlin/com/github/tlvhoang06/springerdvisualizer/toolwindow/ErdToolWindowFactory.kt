@@ -52,6 +52,7 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     canvasPanel.zoomIn()
                 }
+            })
             add(object : AnAction("Zoom Out", "Zoom out", AllIcons.General.ZoomOut), DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     canvasPanel.zoomOut()

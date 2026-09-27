@@ -207,6 +207,10 @@ class ErdCanvasPanel : JPanel() {
         return Point(mx, my)
     }
 
+    fun renderCanvas(g2: Graphics2D) {
+        paintComponent(g2)
+    }
+
     override fun paintComponent(g: Graphics) {
         super.paintComponent(g)
         val g2 = g as Graphics2D

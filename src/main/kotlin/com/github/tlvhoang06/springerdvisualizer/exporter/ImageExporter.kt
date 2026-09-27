@@ -28,7 +28,7 @@ object ImageExporter {
             g2.color = canvasPanel.background ?: Color(43, 45, 48)
             g2.fillRect(0, 0, width, height)
 
-            canvasPanel.paintComponent(g2)
+            canvasPanel.renderCanvas(g2)
         } finally {
             g2.dispose()
         }
