@@ -15,4 +15,5 @@ build/
 
 # Logs
 *.log
+.kotlin/
 
