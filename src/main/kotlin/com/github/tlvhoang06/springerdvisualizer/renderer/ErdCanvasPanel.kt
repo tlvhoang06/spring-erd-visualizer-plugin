@@ -254,14 +254,30 @@ class ErdCanvasPanel : JPanel() {
         val query = filterQuery
         val isFiltering = query.isNotEmpty()
 
-        // 1. Draw relationships
+        // Pass 1: Draw relationship lines
         val deduplicatedRels = graphModel.deduplicatedRelationships()
-        for (rel in deduplicatedRels) {
+        val badgeQueue = mutableListOf<Triple<Point, Point, String>>()
+        val badgeHighlightQueue = mutableListOf<Boolean>()
+
+        for ((rIndex, rel) in deduplicatedRels.withIndex()) {
             val isHighlighted = activeEntity != null && (rel.sourceEntity == activeEntity || rel.targetEntity == activeEntity)
-            drawRelationship(g2, rel, isHighlighted, activeEntity != null && !isHighlighted)
+            val isDimmed = activeEntity != null && !isHighlighted
+            val endpoints = drawRelationshipLine(g2, rel, rIndex, deduplicatedRels, isHighlighted, isDimmed)
+            if (endpoints != null) {
+                val (srcLabel, tgtLabel) = when (rel.type) {
+                    RelationshipType.ONE_TO_ONE -> Pair("1", "1")
+                    RelationshipType.ONE_TO_MANY -> Pair("1", "N")
+                    RelationshipType.MANY_TO_ONE -> Pair("N", "1")
+                    RelationshipType.MANY_TO_MANY -> Pair("N", "M")
+                }
+                badgeQueue.add(Triple(endpoints.first.first, endpoints.first.second, srcLabel))
+                badgeHighlightQueue.add(isHighlighted)
+                badgeQueue.add(Triple(endpoints.second.first, endpoints.second.second, tgtLabel))
+                badgeHighlightQueue.add(isHighlighted)
+            }
         }
 
-        // 2. Draw entity nodes
+        // Pass 2: Draw entity nodes (cards)
         for (node in nodes.values) {
             val matchesFilter = !isFiltering || node.entity.name.lowercase().contains(query) ||
                     (!node.entity.tableName.isNullOrBlank() && node.entity.tableName!!.lowercase().contains(query)) ||
@@ -276,6 +292,13 @@ class ErdCanvasPanel : JPanel() {
             val isDimmed = (activeEntity != null && !isSelected && !isHovered && !isConnected) || (isFiltering && !matchesFilter)
 
             drawEntityCard(g2, node, isSelected || isHovered || (isFiltering && matchesFilter), isDimmed)
+        }
+
+        // Pass 3: Draw Cardinality Badges ON TOP of all lines and cards
+        for (i in badgeQueue.indices) {
+            val (endPt, farPt, label) = badgeQueue[i]
+            val isHL = badgeHighlightQueue[i]
+            drawCardinalityBadge(g2, endPt, farPt, label, isHL)
         }
     }
 
@@ -437,9 +460,16 @@ class ErdCanvasPanel : JPanel() {
         g2.drawString(typeStr, r.x + r.width - typeWidth - 12, yOffset)
     }
 
-    private fun drawRelationship(g2: Graphics2D, rel: RelationshipModel, isHighlighted: Boolean, isDimmed: Boolean) {
-        val sourceNode = nodes[rel.sourceEntity] ?: return
-        val targetNode = nodes[rel.targetEntity] ?: return
+    private fun drawRelationshipLine(
+        g2: Graphics2D,
+        rel: RelationshipModel,
+        relIndex: Int,
+        allRels: List<RelationshipModel>,
+        isHighlighted: Boolean,
+        isDimmed: Boolean
+    ): Pair<Pair<Point, Point>, Pair<Point, Point>>? {
+        val sourceNode = nodes[rel.sourceEntity] ?: return null
+        val targetNode = nodes[rel.targetEntity] ?: return null
 
         val sR = sourceNode.bounds
         val tR = targetNode.bounds
@@ -451,11 +481,11 @@ class ErdCanvasPanel : JPanel() {
             g2.color = if (isHighlighted) lineHighlightColor else lineNeutralColor
             g2.stroke = BasicStroke(if (isHighlighted) 2.0f else 1.2f)
             g2.drawArc(arcX, arcY, 40, 40, 0, 270)
-            return
+            return Pair(Pair(Point(arcX + 20, arcY), Point(arcX + 40, arcY)), Pair(Point(arcX + 40, arcY + 20), Point(arcX + 40, arcY + 40)))
         }
 
-        // Determine orthogonal anchor points
-        val (p1, p2) = calculateOrthogonalAnchors(sR, tR)
+        // Distributed connection ports along card boundaries
+        val (p1, p2) = calculateDistributedAnchors(rel, allRels)
 
         val strokeWidth = if (isHighlighted) 2.2f else 1.2f
         val lineColor = when {
@@ -472,9 +502,13 @@ class ErdCanvasPanel : JPanel() {
         path.moveTo(p1.x.toDouble(), p1.y.toDouble())
 
         val isHorizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y)
+        val laneOffset = (relIndex % 5 - 2) * 14
 
-        val midX = if (isHorizontal) findObstacleFreeMidX((p1.x + p2.x) / 2, p1, p2, rel.sourceEntity, rel.targetEntity) else (p1.x + p2.x) / 2
-        val midY = if (!isHorizontal) findObstacleFreeMidY((p1.y + p2.y) / 2, p1, p2, rel.sourceEntity, rel.targetEntity) else (p1.y + p2.y) / 2
+        val initialMidX = (p1.x + p2.x) / 2 + laneOffset
+        val initialMidY = (p1.y + p2.y) / 2 + laneOffset
+
+        val midX = if (isHorizontal) findObstacleFreeMidX(initialMidX, p1, p2, rel.sourceEntity, rel.targetEntity) else initialMidX
+        val midY = if (!isHorizontal) findObstacleFreeMidY(initialMidY, p1, p2, rel.sourceEntity, rel.targetEntity) else initialMidY
 
         if (isHorizontal) {
             path.lineTo(midX.toDouble(), p1.y.toDouble())
@@ -488,19 +522,10 @@ class ErdCanvasPanel : JPanel() {
 
         g2.draw(path)
 
-        // Endpoint Cardinality Badges
-        val (srcLabel, tgtLabel) = when (rel.type) {
-            RelationshipType.ONE_TO_ONE -> Pair("1", "1")
-            RelationshipType.ONE_TO_MANY -> Pair("1", "N")
-            RelationshipType.MANY_TO_ONE -> Pair("N", "1")
-            RelationshipType.MANY_TO_MANY -> Pair("N", "M")
-        }
-
         val far1 = if (isHorizontal) Point(midX, p1.y) else Point(p1.x, midY)
         val far2 = if (isHorizontal) Point(midX, p2.y) else Point(p2.x, midY)
 
-        drawCardinalityBadge(g2, p1, far1, srcLabel, isHighlighted)
-        drawCardinalityBadge(g2, p2, far2, tgtLabel, isHighlighted)
+        return Pair(Pair(p1, far1), Pair(p2, far2))
     }
 
     private fun findObstacleFreeMidX(initialMidX: Int, p1: Point, p2: Point, sourceEntity: String, targetEntity: String): Int {
@@ -551,25 +576,68 @@ class ErdCanvasPanel : JPanel() {
         return currentMidY
     }
 
-    private fun calculateOrthogonalAnchors(sR: Rectangle, tR: Rectangle): Pair<Point, Point> {
+    private fun calculateDistributedAnchors(rel: RelationshipModel, allRels: List<RelationshipModel>): Pair<Point, Point> {
+        val sourceNode = nodes[rel.sourceEntity] ?: return Pair(Point(0, 0), Point(0, 0))
+        val targetNode = nodes[rel.targetEntity] ?: return Pair(Point(0, 0), Point(0, 0))
+
+        val sR = sourceNode.bounds
+        val tR = targetNode.bounds
+
         val sCenter = Point(sR.x + sR.width / 2, sR.y + sR.height / 2)
         val tCenter = Point(tR.x + tR.width / 2, tR.y + tR.height / 2)
 
-        return if (Math.abs(sCenter.x - tCenter.x) >= Math.abs(sCenter.y - tCenter.y)) {
-            // Horizontal dominant relation: exit left/right sides
+        val isHorizontal = Math.abs(sCenter.x - tCenter.x) >= Math.abs(sCenter.y - tCenter.y)
+
+        val sSideRels = allRels.filter { r ->
+            val sN = nodes[r.sourceEntity] ?: return@filter false
+            val tN = nodes[r.targetEntity] ?: return@filter false
+            val sC = Point(sN.bounds.x + sN.bounds.width / 2, sN.bounds.y + sN.bounds.height / 2)
+            val tC = Point(tN.bounds.x + tN.bounds.width / 2, tN.bounds.y + tN.bounds.height / 2)
+            val rIsH = Math.abs(sC.x - tC.x) >= Math.abs(sC.y - tC.y)
+            (r.sourceEntity == rel.sourceEntity && rIsH == isHorizontal) ||
+            (r.targetEntity == rel.sourceEntity && rIsH == isHorizontal)
+        }
+        val sIndex = sSideRels.indexOf(rel).coerceAtLeast(0)
+        val sCount = sSideRels.size.coerceAtLeast(1)
+
+        val tSideRels = allRels.filter { r ->
+            val sN = nodes[r.sourceEntity] ?: return@filter false
+            val tN = nodes[r.targetEntity] ?: return@filter false
+            val sC = Point(sN.bounds.x + sN.bounds.width / 2, sN.bounds.y + sN.bounds.height / 2)
+            val tC = Point(tN.bounds.x + tN.bounds.width / 2, tN.bounds.y + tN.bounds.height / 2)
+            val rIsH = Math.abs(sC.x - tC.x) >= Math.abs(sC.y - tC.y)
+            (r.sourceEntity == rel.targetEntity && rIsH == isHorizontal) ||
+            (r.targetEntity == rel.targetEntity && rIsH == isHorizontal)
+        }
+        val tIndex = tSideRels.indexOf(rel).coerceAtLeast(0)
+        val tCount = tSideRels.size.coerceAtLeast(1)
+
+        val p1: Point
+        val p2: Point
+
+        if (isHorizontal) {
+            val sY = sR.y + ((sIndex + 1) * sR.height / (sCount + 1))
+            val tY = tR.y + ((tIndex + 1) * tR.height / (tCount + 1))
             if (sCenter.x < tCenter.x) {
-                Pair(Point(sR.x + sR.width, sCenter.y), Point(tR.x, tCenter.y))
+                p1 = Point(sR.x + sR.width, sY)
+                p2 = Point(tR.x, tY)
             } else {
-                Pair(Point(sR.x, sCenter.y), Point(tR.x + tR.width, tCenter.y))
+                p1 = Point(sR.x, sY)
+                p2 = Point(tR.x + tR.width, tY)
             }
         } else {
-            // Vertical dominant relation: exit top/bottom sides
+            val sX = sR.x + ((sIndex + 1) * sR.width / (sCount + 1))
+            val tX = tR.x + ((tIndex + 1) * tR.width / (tCount + 1))
             if (sCenter.y < tCenter.y) {
-                Pair(Point(sCenter.x, sR.y + sR.height), Point(tCenter.x, tR.y))
+                p1 = Point(sX, sR.y + sR.height)
+                p2 = Point(tX, tR.y)
             } else {
-                Pair(Point(sCenter.x, sR.y), Point(tCenter.x, tR.y + tR.height))
+                p1 = Point(sX, sR.y)
+                p2 = Point(tX, tR.y + tR.height)
             }
         }
+
+        return Pair(p1, p2)
     }
 
     private fun drawCardinalityBadge(g2: Graphics2D, endPoint: Point, farPoint: Point, label: String, isHighlighted: Boolean) {
@@ -596,6 +664,10 @@ class ErdCanvasPanel : JPanel() {
         val size = 18
         val radius = size / 2
 
+        // Solid background cutout mask matching canvas background to prevent line bleed
+        g2.color = canvasBgColor
+        g2.fillOval(badgeX - radius - 3, badgeY - radius - 3, size + 6, size + 6)
+
         // Subtle shadow
         g2.color = JBColor(Color(0, 0, 0, 40), Color(0, 0, 0, 80))
         g2.fillOval(badgeX - radius + 1, badgeY - radius + 1, size, size)
@@ -606,7 +678,7 @@ class ErdCanvasPanel : JPanel() {
 
         // Circle border
         g2.color = border
-        g2.stroke = BasicStroke(1.0f)
+        g2.stroke = BasicStroke(1.2f)
         g2.drawOval(badgeX - radius, badgeY - radius, size, size)
 
         // Text label
