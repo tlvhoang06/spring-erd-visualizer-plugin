@@ -52,10 +52,16 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     canvasPanel.zoomIn()
                 }
-            })
             add(object : AnAction("Zoom Out", "Zoom out", AllIcons.General.ZoomOut), DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     canvasPanel.zoomOut()
+                }
+            })
+            add(object : AnAction("Export Mermaid", "Copy Mermaid ERD diagram syntax to clipboard", AllIcons.Actions.MenuSaveWith), DumbAware {
+                override fun actionPerformed(e: AnActionEvent) {
+                    val mermaidText = com.github.tlvhoang06.springerdvisualizer.exporter.MermaidExporter.export(canvasPanel.graphModel)
+                    com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(mermaidText))
+                    com.intellij.openapi.ui.Messages.showInfoMessage(project, "Mermaid ERD syntax copied to clipboard!", "Export Mermaid")
                 }
             })
         }
