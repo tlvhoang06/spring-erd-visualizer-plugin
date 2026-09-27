@@ -46,6 +46,13 @@ object EntityScanner {
                 }
                 continue
             }
+            if (FieldAnalyzer.isEmbeddedField(field)) {
+                val embeddedFields = FieldAnalyzer.analyzeEmbeddedField(field)
+                if (embeddedFields.isNotEmpty()) {
+                    fields.addAll(embeddedFields)
+                    continue
+                }
+            }
             val fieldModel = FieldAnalyzer.analyzeField(field)
             if (fieldModel != null) {
                 fields.add(fieldModel)

@@ -2,6 +2,9 @@ package com.github.tlvhoang06.springerdvisualizer.analyzer
 
 import com.github.tlvhoang06.springerdvisualizer.model.FieldModel
 import com.intellij.psi.PsiAnnotation
+import com.intellij.psi.PsiArrayInitializerMemberValue
+import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiClassType
 import com.intellij.psi.PsiField
 import com.intellij.psi.PsiLiteralExpression
 import com.intellij.psi.PsiModifier
@@ -29,6 +32,24 @@ object FieldAnalyzer {
         "Transient"
     )
 
+    private val EMBEDDED_ANNOTATIONS = setOf(
+        "javax.persistence.Embedded",
+        "jakarta.persistence.Embedded",
+        "Embedded"
+    )
+
+    private val EMBEDDABLE_ANNOTATIONS = setOf(
+        "javax.persistence.Embeddable",
+        "jakarta.persistence.Embeddable",
+        "Embeddable"
+    )
+
+    private val EMBEDDED_ID_ANNOTATIONS = setOf(
+        "javax.persistence.EmbeddedId",
+        "jakarta.persistence.EmbeddedId",
+        "EmbeddedId"
+    )
+
     private val RELATIONSHIP_ANNOTATIONS = setOf(
         "javax.persistence.OneToOne",
         "jakarta.persistence.OneToOne",
@@ -53,6 +74,49 @@ object FieldAnalyzer {
 
     fun isRelationshipField(field: PsiField): Boolean {
         return field.annotations.any { annotationMatches(it, RELATIONSHIP_ANNOTATIONS) }
+    }
+
+    fun isEmbeddedField(field: PsiField): Boolean {
+        if (field.annotations.any { annotationMatches(it, EMBEDDED_ANNOTATIONS) || annotationMatches(it, EMBEDDED_ID_ANNOTATIONS) }) {
+            return true
+        }
+        val typeClass = (field.type as? PsiClassType)?.resolve()
+        return typeClass != null && isEmbeddableClass(typeClass)
+    }
+
+    fun isEmbeddableClass(psiClass: PsiClass): Boolean {
+        return psiClass.annotations.any { annotationMatches(it, EMBEDDABLE_ANNOTATIONS) }
+    }
+
+    fun analyzeEmbeddedField(field: PsiField): List<FieldModel> {
+        val result = mutableListOf<FieldModel>()
+        val isPk = field.annotations.any { annotationMatches(it, PRIMARY_KEY_ANNOTATIONS) }
+        val prefix = field.name
+
+        val typeClass = (field.type as? PsiClassType)?.resolve() ?: return emptyList()
+        if (!isEmbeddableClass(typeClass) && !field.annotations.any { annotationMatches(it, EMBEDDED_ANNOTATIONS) || annotationMatches(it, EMBEDDED_ID_ANNOTATIONS) }) {
+            return emptyList()
+        }
+
+        val overrides = parseAttributeOverrides(field)
+
+        for (embedField in typeClass.fields) {
+            if (isTransient(embedField)) continue
+            val baseModel = analyzeField(embedField) ?: continue
+
+            val compositeName = "$prefix.${baseModel.name}"
+            val overriddenCol = overrides[baseModel.name] ?: baseModel.columnName
+
+            result.add(
+                baseModel.copy(
+                    name = compositeName,
+                    columnName = overriddenCol,
+                    isPrimaryKey = isPk || baseModel.isPrimaryKey
+                )
+            )
+        }
+
+        return result
     }
 
     fun analyzeField(field: PsiField): FieldModel? {
@@ -84,6 +148,37 @@ object FieldAnalyzer {
             nullable = nullable,
             unique = unique
         )
+    }
+
+    private fun parseAttributeOverrides(field: PsiField): Map<String, String> {
+        val map = mutableMapOf<String, String>()
+        for (annotation in field.annotations) {
+            val shortName = annotation.nameReferenceElement?.referenceName
+            if (shortName == "AttributeOverride" || annotation.qualifiedName?.endsWith("AttributeOverride") == true) {
+                parseSingleAttributeOverride(annotation, map)
+            } else if (shortName == "AttributeOverrides" || annotation.qualifiedName?.endsWith("AttributeOverrides") == true) {
+                val value = annotation.findAttributeValue("value")
+                if (value is PsiArrayInitializerMemberValue) {
+                    for (initializer in value.initializers) {
+                        if (initializer is PsiAnnotation) {
+                            parseSingleAttributeOverride(initializer, map)
+                        }
+                    }
+                }
+            }
+        }
+        return map
+    }
+
+    private fun parseSingleAttributeOverride(annotation: PsiAnnotation, map: MutableMap<String, String>) {
+        val attrName = getStringAttribute(annotation, "name") ?: return
+        val colVal = annotation.findAttributeValue("column")
+        if (colVal is PsiAnnotation) {
+            val colName = getStringAttribute(colVal, "name")
+            if (!colName.isNullOrBlank()) {
+                map[attrName] = colName
+            }
+        }
     }
 
     private fun String?.isNullOrBlank(): Boolean = this == null || this.trim().isEmpty()
@@ -122,3 +217,4 @@ object FieldAnalyzer {
         return defaultValue
     }
 }
+
