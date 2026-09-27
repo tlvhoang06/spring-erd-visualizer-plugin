@@ -47,31 +47,33 @@ class ErdCanvasPanel : JPanel() {
             repaint()
         }
 
-    // Theme-aware color palette
-    private val cardBgColor = JBColor.namedColor("Panel.background", JBColor(Color(255, 255, 255), Color(43, 45, 48)))
-    private val headerBgColor = JBColor.namedColor("TableHeader.background", JBColor(Color(234, 238, 245), Color(35, 40, 48)))
-    private val headerAccentBarColor = JBColor.namedColor("Link.foreground", JBColor(Color(45, 125, 230), Color(65, 145, 245)))
-    private val borderColor = JBColor.namedColor("Component.borderColor", JBColor(Color(205, 210, 215), Color(75, 78, 82)))
-    private val selectedBorderColor = JBColor.namedColor("Focus.borderColor", JBColor(Color(50, 130, 230), Color(65, 145, 245)))
-    private val separatorColor = JBColor.namedColor("Separator.separatorColor", JBColor(Color(228, 232, 238), Color(62, 66, 72)))
-    private val pkBoundarySeparatorColor = JBColor(Color(220, 170, 50), Color(190, 140, 30))
+    // Theme-aware color palette with high-contrast surfaces
+    private val canvasBgColor = JBColor.namedColor("Canvas.background", JBColor(Color(246, 248, 252), Color(25, 27, 31)))
+    private val cardBgColor = JBColor.namedColor("Panel.background", JBColor(Color(255, 255, 255), Color(45, 49, 56)))
+    private val headerBgColor = JBColor.namedColor("TableHeader.background", JBColor(Color(232, 238, 248), Color(56, 62, 74)))
+    private val headerAccentBarColor = JBColor.namedColor("Link.foreground", JBColor(Color(45, 125, 230), Color(75, 160, 255)))
+    private val borderColor = JBColor.namedColor("Component.borderColor", JBColor(Color(190, 198, 210), Color(90, 98, 112)))
+    private val selectedBorderColor = JBColor.namedColor("Focus.borderColor", JBColor(Color(45, 125, 230), Color(85, 175, 255)))
+    private val separatorColor = JBColor.namedColor("Separator.separatorColor", JBColor(Color(228, 232, 238), Color(68, 74, 85)))
+    private val pkBoundarySeparatorColor = JBColor(Color(220, 160, 40), Color(210, 155, 30))
 
-    private val primaryTextColor = JBColor.namedColor("Label.foreground", JBColor(Color(30, 30, 30), Color(225, 225, 225)))
-    private val mutedTextColor = JBColor.namedColor("Label.infoForeground", JBColor(Color(120, 120, 120), Color(145, 145, 145)))
-    private val pkAccentColor = JBColor(Color(180, 120, 0), Color(240, 180, 40))
+    private val primaryTextColor = JBColor.namedColor("Label.foreground", JBColor(Color(20, 25, 35), Color(245, 247, 250)))
+    private val secondaryTextColor = JBColor.namedColor("Label.infoForeground", JBColor(Color(90, 100, 115), Color(180, 190, 205)))
+    private val dimmedTextColor = JBColor(Color(150, 155, 165), Color(140, 146, 158))
+    private val pkAccentColor = JBColor(Color(190, 125, 0), Color(255, 195, 45))
 
-    private val lineNeutralColor = JBColor.namedColor("Component.borderColor", JBColor(Color(160, 168, 178), Color(95, 105, 115)))
-    private val lineHighlightColor = JBColor.namedColor("Link.foreground", JBColor(Color(45, 120, 230), Color(80, 170, 255)))
+    private val lineNeutralColor = JBColor.namedColor("Component.borderColor", JBColor(Color(140, 150, 165), Color(125, 135, 150)))
+    private val lineHighlightColor = JBColor.namedColor("Link.foreground", JBColor(Color(35, 115, 230), Color(80, 175, 255)))
 
     // Cardinality Badges (Colorized)
     private val badge1BgColor = JBColor(Color(37, 117, 212), Color(45, 135, 235))
     private val badge1BorderColor = JBColor(Color(25, 90, 170), Color(30, 110, 195))
-    private val badgeManyBgColor = JBColor(Color(136, 56, 186), Color(155, 75, 210))
+    private val badgeManyBgColor = JBColor(Color(136, 56, 186), Color(165, 85, 220))
     private val badgeManyBorderColor = JBColor(Color(105, 40, 145), Color(125, 55, 175))
 
     init {
         isFocusable = true
-        background = cardBgColor
+        background = canvasBgColor
 
         val mouseHandler = object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) {
@@ -265,7 +267,10 @@ class ErdCanvasPanel : JPanel() {
     }
 
     private fun drawGridBackground(g2: Graphics2D) {
-        val dotColor = JBColor.namedColor("Component.borderColor", JBColor(Color(230, 230, 230), Color(60, 60, 60)))
+        g2.color = canvasBgColor
+        g2.fillRect(0, 0, width, height)
+
+        val dotColor = JBColor(Color(215, 220, 228), Color(52, 56, 65))
         g2.color = dotColor
         val gridSize = (30 * zoomScale).toInt().coerceAtLeast(15)
 
@@ -284,7 +289,7 @@ class ErdCanvasPanel : JPanel() {
     }
 
     private fun drawEmptyState(g2: Graphics2D) {
-        g2.color = mutedTextColor
+        g2.color = secondaryTextColor
         g2.font = Font("Dialog", Font.BOLD, 14)
         g2.drawString("No JPA entities detected. Open a Spring Boot/JPA project and click 'Generate ERD'.", 40, 80)
     }
@@ -294,77 +299,88 @@ class ErdCanvasPanel : JPanel() {
         val entity = node.entity
 
         val currentBorderColor = if (isHighlighted) selectedBorderColor else borderColor
-        val currentTextColor = if (isDimmed) mutedTextColor else primaryTextColor
+        val currentTextColor = if (isDimmed) dimmedTextColor else primaryTextColor
+        val currentSecondaryTextColor = if (isDimmed) dimmedTextColor else secondaryTextColor
         val cornerRadius = 8.0f
 
-        // 1. Card body background fill
-        g2.color = cardBgColor
-        g2.fill(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
-
-        // 2. Header background box fill (Highlighted)
-        val headerArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
-        val headerClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), ErdLayoutEngine.HEADER_HEIGHT.toFloat())
-        headerArea.intersect(Area(headerClip))
-
-        g2.color = headerBgColor
-        g2.fill(headerArea)
-
-        // 3. Header top accent bar
-        val accentArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
-        val accentClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), 3.0f)
-        accentArea.intersect(Area(accentClip))
-
-        g2.color = if (isHighlighted) selectedBorderColor else headerAccentBarColor
-        g2.fill(accentArea)
-
-        // 4. Header bottom separator line
-        g2.color = separatorColor
-        g2.stroke = BasicStroke(1.0f)
-        val headerSepY = r.y + ErdLayoutEngine.HEADER_HEIGHT
-        g2.drawLine(r.x, headerSepY, r.x + r.width, headerSepY)
-
-        // 5. Entity Name & Table Name inside header
-        g2.color = currentTextColor
-        g2.font = Font("Dialog", Font.BOLD, 13)
-        g2.drawString(entity.name, r.x + 12, r.y + 20)
-
-        if (!entity.tableName.isNullOrBlank()) {
-            g2.color = mutedTextColor
-            g2.font = Font("Dialog", Font.ITALIC, 10)
-            g2.drawString("(${entity.tableName})", r.x + 12, r.y + 36)
+        val originalComposite = g2.composite
+        if (isDimmed) {
+            g2.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.45f)
         }
 
-        // 6. Draw field rows with per-row horizontal separator lines
-        val pkFields = entity.fields.filter { it.isPrimaryKey }
-        val normalFields = entity.fields.filter { !it.isPrimaryKey }
-        val allFields = pkFields + normalFields
+        try {
+            // 1. Card body background fill
+            g2.color = cardBgColor
+            g2.fill(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
 
-        for (i in allFields.indices) {
-            val field = allFields[i]
-            val rowTop = headerSepY + i * ErdLayoutEngine.ROW_HEIGHT
-            val yText = rowTop + 16
+            // 2. Header background box fill (Highlighted)
+            val headerArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
+            val headerClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), ErdLayoutEngine.HEADER_HEIGHT.toFloat())
+            headerArea.intersect(Area(headerClip))
 
-            drawFieldRow(g2, r, field, yText, isDimmed)
+            g2.color = headerBgColor
+            g2.fill(headerArea)
 
-            // Horizontal divider line below EVERY field row (except last)
-            val isLastField = (i == allFields.size - 1)
-            if (!isLastField) {
-                val lineY = rowTop + ErdLayoutEngine.ROW_HEIGHT
-                val isPkBoundary = field.isPrimaryKey && (i + 1 < allFields.size && !allFields[i + 1].isPrimaryKey)
-                g2.color = if (isPkBoundary) pkBoundarySeparatorColor else separatorColor
-                g2.stroke = BasicStroke(if (isPkBoundary) 1.2f else 1.0f)
-                g2.drawLine(r.x, lineY, r.x + r.width, lineY)
+            // 3. Header top accent bar
+            val accentArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
+            val accentClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), 3.0f)
+            accentArea.intersect(Area(accentClip))
+
+            g2.color = if (isHighlighted) selectedBorderColor else headerAccentBarColor
+            g2.fill(accentArea)
+
+            // 4. Header bottom separator line
+            g2.color = separatorColor
+            g2.stroke = BasicStroke(1.0f)
+            val headerSepY = r.y + ErdLayoutEngine.HEADER_HEIGHT
+            g2.drawLine(r.x, headerSepY, r.x + r.width, headerSepY)
+
+            // 5. Entity Name & Table Name inside header
+            g2.color = currentTextColor
+            g2.font = Font("Dialog", Font.BOLD, 13)
+            g2.drawString(entity.name, r.x + 12, r.y + 20)
+
+            if (!entity.tableName.isNullOrBlank()) {
+                g2.color = currentSecondaryTextColor
+                g2.font = Font("Dialog", Font.ITALIC, 10)
+                g2.drawString("(${entity.tableName})", r.x + 12, r.y + 36)
             }
-        }
 
-        // 7. Outer card border
-        g2.color = currentBorderColor
-        g2.stroke = BasicStroke(if (isHighlighted) 2.0f else 1.0f)
-        g2.draw(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
+            // 6. Draw field rows with per-row horizontal separator lines
+            val pkFields = entity.fields.filter { it.isPrimaryKey }
+            val normalFields = entity.fields.filter { !it.isPrimaryKey }
+            val allFields = pkFields + normalFields
+
+            for (i in allFields.indices) {
+                val field = allFields[i]
+                val rowTop = headerSepY + i * ErdLayoutEngine.ROW_HEIGHT
+                val yText = rowTop + 16
+
+                drawFieldRow(g2, r, field, yText, isDimmed)
+
+                // Horizontal divider line below EVERY field row (except last)
+                val isLastField = (i == allFields.size - 1)
+                if (!isLastField) {
+                    val lineY = rowTop + ErdLayoutEngine.ROW_HEIGHT
+                    val isPkBoundary = field.isPrimaryKey && (i + 1 < allFields.size && !allFields[i + 1].isPrimaryKey)
+                    g2.color = if (isPkBoundary) pkBoundarySeparatorColor else separatorColor
+                    g2.stroke = BasicStroke(if (isPkBoundary) 1.2f else 1.0f)
+                    g2.drawLine(r.x, lineY, r.x + r.width, lineY)
+                }
+            }
+
+            // 7. Outer card border
+            g2.color = currentBorderColor
+            g2.stroke = BasicStroke(if (isHighlighted) 2.0f else 1.0f)
+            g2.draw(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
+        } finally {
+            g2.composite = originalComposite
+        }
     }
 
     private fun drawFieldRow(g2: Graphics2D, r: Rectangle, field: FieldModel, yOffset: Int, isDimmed: Boolean) {
-        val fieldTextColor = if (isDimmed) mutedTextColor else primaryTextColor
+        val fieldTextColor = if (isDimmed) dimmedTextColor else primaryTextColor
+        val fieldSecondaryColor = if (isDimmed) dimmedTextColor else secondaryTextColor
 
         if (field.isPrimaryKey) {
             g2.color = pkAccentColor
@@ -380,8 +396,8 @@ class ErdCanvasPanel : JPanel() {
             g2.drawString(field.name, r.x + 14, yOffset)
         }
 
-        // Datatype = muted secondary text, right-aligned
-        g2.color = mutedTextColor
+        // Datatype = secondary text, right-aligned
+        g2.color = fieldSecondaryColor
         g2.font = Font("Dialog", Font.PLAIN, 11)
         val typeStr = field.type
         val fm = g2.fontMetrics
