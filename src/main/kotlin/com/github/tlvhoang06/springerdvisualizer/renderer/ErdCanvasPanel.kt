@@ -47,29 +47,42 @@ class ErdCanvasPanel : JPanel() {
             repaint()
         }
 
-    // Theme-aware color palette with high-contrast surfaces
-    private val canvasBgColor = JBColor.namedColor("Canvas.background", JBColor(Color(246, 248, 252), Color(25, 27, 31)))
-    private val cardBgColor = JBColor.namedColor("Panel.background", JBColor(Color(255, 255, 255), Color(45, 49, 56)))
-    private val headerBgColor = JBColor.namedColor("TableHeader.background", JBColor(Color(232, 238, 248), Color(56, 62, 74)))
-    private val headerAccentBarColor = JBColor.namedColor("Link.foreground", JBColor(Color(45, 125, 230), Color(75, 160, 255)))
-    private val borderColor = JBColor.namedColor("Component.borderColor", JBColor(Color(190, 198, 210), Color(90, 98, 112)))
-    private val selectedBorderColor = JBColor.namedColor("Focus.borderColor", JBColor(Color(45, 125, 230), Color(85, 175, 255)))
-    private val separatorColor = JBColor.namedColor("Separator.separatorColor", JBColor(Color(228, 232, 238), Color(68, 74, 85)))
-    private val pkBoundarySeparatorColor = JBColor(Color(220, 160, 40), Color(210, 155, 30))
+    // High-contrast modern color palette (Direct JBColor without theme suppression)
+    private val canvasBgColor = JBColor(Color(248, 250, 252), Color(15, 23, 42)) // Slate 50 / Slate 900
+    private val cardBgColor = JBColor(Color(255, 255, 255), Color(30, 41, 59))  // Pure White / Slate 800
+    private val headerBgColor = JBColor(Color(241, 245, 249), Color(24, 34, 53)) // Slate 100 / Deep Slate Blue
+    private val borderColor = JBColor(Color(203, 213, 225), Color(71, 85, 105)) // Slate 300 / Slate 600
+    private val selectedBorderColor = JBColor(Color(37, 99, 235), Color(56, 189, 248)) // Electric Blue / Sky Blue 400
+    private val separatorColor = JBColor(Color(226, 232, 240), Color(51, 65, 85)) // Slate 200 / Slate 700
+    private val pkBoundarySeparatorColor = JBColor(Color(245, 158, 11), Color(217, 119, 6)) // Amber separator line
 
-    private val primaryTextColor = JBColor.namedColor("Label.foreground", JBColor(Color(20, 25, 35), Color(245, 247, 250)))
-    private val secondaryTextColor = JBColor.namedColor("Label.infoForeground", JBColor(Color(90, 100, 115), Color(180, 190, 205)))
-    private val dimmedTextColor = JBColor(Color(150, 155, 165), Color(140, 146, 158))
-    private val pkAccentColor = JBColor(Color(190, 125, 0), Color(255, 195, 45))
+    private val primaryTextColor = JBColor(Color(15, 23, 42), Color(248, 250, 252)) // Crisp Slate 900 / Crisp White 50
+    private val secondaryTextColor = JBColor(Color(100, 116, 139), Color(148, 163, 184)) // Slate 500 / Slate 400
+    private val typeTextColor = JBColor(Color(13, 148, 136), Color(56, 189, 248)) // Teal 600 / Sky Blue 400 (Vibrant Type Syntax)
+    private val dimmedTextColor = JBColor(Color(148, 163, 184), Color(100, 116, 139)) // Dimmed Slate
 
-    private val lineNeutralColor = JBColor.namedColor("Component.borderColor", JBColor(Color(140, 150, 165), Color(125, 135, 150)))
-    private val lineHighlightColor = JBColor.namedColor("Link.foreground", JBColor(Color(35, 115, 230), Color(80, 175, 255)))
+    // PK Badge Pill (Vibrant Gold/Amber)
+    private val pkBadgeBg = JBColor(Color(254, 243, 199), Color(217, 119, 6))
+    private val pkBadgeText = JBColor(Color(180, 83, 9), Color(255, 251, 235))
 
-    // Cardinality Badges (Colorized)
-    private val badge1BgColor = JBColor(Color(37, 117, 212), Color(45, 135, 235))
-    private val badge1BorderColor = JBColor(Color(25, 90, 170), Color(30, 110, 195))
-    private val badgeManyBgColor = JBColor(Color(136, 56, 186), Color(165, 85, 220))
-    private val badgeManyBorderColor = JBColor(Color(105, 40, 145), Color(125, 55, 175))
+    // Multi-color header accent bar palette for visual entity identification
+    private val headerAccentPalette = listOf(
+        JBColor(Color(37, 99, 235), Color(59, 130, 246)),  // Electric Blue
+        JBColor(Color(16, 185, 129), Color(52, 211, 153)), // Emerald Green
+        JBColor(Color(139, 92, 246), Color(167, 139, 250)),// Violet Purple
+        JBColor(Color(249, 115, 22), Color(251, 146, 60)), // Coral Orange
+        JBColor(Color(6, 182, 212), Color(45, 212, 191)),  // Cyan Teal
+        JBColor(Color(236, 72, 153), Color(244, 114, 182))  // Pink Rose
+    )
+
+    private val lineNeutralColor = JBColor(Color(148, 163, 184), Color(100, 116, 139))
+    private val lineHighlightColor = JBColor(Color(37, 99, 235), Color(56, 189, 248))
+
+    // Cardinality Badges (Vibrant Solid Pill Circles)
+    private val badge1BgColor = JBColor(Color(37, 99, 235), Color(37, 99, 235))
+    private val badge1BorderColor = JBColor(Color(29, 78, 216), Color(96, 165, 250))
+    private val badgeManyBgColor = JBColor(Color(124, 58, 237), Color(139, 92, 246))
+    private val badgeManyBorderColor = JBColor(Color(109, 40, 217), Color(192, 132, 252))
 
     init {
         isFocusable = true
@@ -270,7 +283,7 @@ class ErdCanvasPanel : JPanel() {
         g2.color = canvasBgColor
         g2.fillRect(0, 0, width, height)
 
-        val dotColor = JBColor(Color(215, 220, 228), Color(52, 56, 65))
+        val dotColor = JBColor(Color(203, 213, 225), Color(51, 65, 85))
         g2.color = dotColor
         val gridSize = (30 * zoomScale).toInt().coerceAtLeast(15)
 
@@ -309,11 +322,15 @@ class ErdCanvasPanel : JPanel() {
         }
 
         try {
+            // 0. Card drop shadow
+            g2.color = JBColor(Color(0, 0, 0, 15), Color(0, 0, 0, 70))
+            g2.fill(RoundRectangle2D.Float(r.x.toFloat() + 2f, r.y.toFloat() + 2f, r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
+
             // 1. Card body background fill
             g2.color = cardBgColor
             g2.fill(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
 
-            // 2. Header background box fill (Highlighted)
+            // 2. Header background box fill
             val headerArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
             val headerClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), ErdLayoutEngine.HEADER_HEIGHT.toFloat())
             headerArea.intersect(Area(headerClip))
@@ -321,12 +338,15 @@ class ErdCanvasPanel : JPanel() {
             g2.color = headerBgColor
             g2.fill(headerArea)
 
-            // 3. Header top accent bar
+            // 3. Header top accent bar (Multi-colored per entity!)
             val accentArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
-            val accentClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), 3.0f)
+            val accentClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), 4.0f)
             accentArea.intersect(Area(accentClip))
 
-            g2.color = if (isHighlighted) selectedBorderColor else headerAccentBarColor
+            val accentIndex = Math.abs(entity.name.hashCode()) % headerAccentPalette.size
+            val entityAccentColor = if (isHighlighted) selectedBorderColor else headerAccentPalette[accentIndex]
+
+            g2.color = entityAccentColor
             g2.fill(accentArea)
 
             // 4. Header bottom separator line
@@ -380,24 +400,35 @@ class ErdCanvasPanel : JPanel() {
 
     private fun drawFieldRow(g2: Graphics2D, r: Rectangle, field: FieldModel, yOffset: Int, isDimmed: Boolean) {
         val fieldTextColor = if (isDimmed) dimmedTextColor else primaryTextColor
-        val fieldSecondaryColor = if (isDimmed) dimmedTextColor else secondaryTextColor
+        val fieldTypeColor = if (isDimmed) dimmedTextColor else typeTextColor
 
         if (field.isPrimaryKey) {
-            g2.color = pkAccentColor
+            // Draw Gold Pill Badge for PK
+            val badgeW = 20f
+            val badgeH = 13f
+            val badgeX = r.x + 8f
+            val badgeY = (yOffset - 10).toFloat()
+
+            g2.color = if (isDimmed) dimmedTextColor else pkBadgeBg
+            g2.fill(RoundRectangle2D.Float(badgeX, badgeY, badgeW, badgeH, 4f, 4f))
+
             g2.font = Font("Dialog", Font.BOLD, 9)
-            g2.drawString("PK", r.x + 10, yOffset)
+            g2.color = if (isDimmed) dimmedTextColor else pkBadgeText
+            val fmPk = g2.fontMetrics
+            val pkW = fmPk.stringWidth("PK")
+            g2.drawString("PK", (badgeX + (badgeW - pkW) / 2).toInt(), yOffset)
 
             g2.font = Font("Dialog", Font.BOLD, 11)
             g2.color = fieldTextColor
-            g2.drawString(field.name, r.x + 32, yOffset)
+            g2.drawString(field.name, r.x + 34, yOffset)
         } else {
             g2.font = Font("Dialog", Font.PLAIN, 11)
             g2.color = fieldTextColor
             g2.drawString(field.name, r.x + 14, yOffset)
         }
 
-        // Datatype = secondary text, right-aligned
-        g2.color = fieldSecondaryColor
+        // Datatype = Teal / Sky Blue 400, right-aligned
+        g2.color = fieldTypeColor
         g2.font = Font("Dialog", Font.PLAIN, 11)
         val typeStr = field.type
         val fm = g2.fontMetrics
