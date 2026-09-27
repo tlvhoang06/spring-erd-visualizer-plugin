@@ -23,40 +23,39 @@ object ProjectEntityScanner {
 
         val filesToScan = mutableSetOf<VirtualFile>()
 
-        // 1. Try FileTypeIndex with projectScope & allScope
+        // 1. Fast Index Search: Only project source scope files (ignoring JDK/libraries allScope)
         try {
             val projectScopeFiles = FileTypeIndex.getFiles(JavaFileType.INSTANCE, GlobalSearchScope.projectScope(project))
             filesToScan.addAll(projectScopeFiles)
-
-            val allScopeFiles = FileTypeIndex.getFiles(JavaFileType.INSTANCE, GlobalSearchScope.allScope(project))
-            filesToScan.addAll(allScopeFiles)
         } catch (_: Exception) {}
 
-        // 2. VFS Fallback if index returns empty (e.g. unindexed / unconfigured JDK project)
-        val basePath = project.basePath
-        if (basePath != null) {
-            val baseDir = LocalFileSystem.getInstance().findFileByPath(basePath)
-            if (baseDir != null) {
-                VfsUtilCore.visitChildrenRecursively(baseDir, object : VirtualFileVisitor<Void>() {
-                    override fun visitFile(file: VirtualFile): Boolean {
-                        if (file.isDirectory) {
-                            val name = file.name
-                            if (name == "target" || name == "build" || name == ".idea" || name == ".git" || name == "node_modules") {
-                                return false
+        // 2. VFS Fallback ONLY if index returns empty (e.g. unindexed / unconfigured JDK project)
+        if (filesToScan.isEmpty()) {
+            val basePath = project.basePath
+            if (basePath != null) {
+                val baseDir = LocalFileSystem.getInstance().findFileByPath(basePath)
+                if (baseDir != null) {
+                    VfsUtilCore.visitChildrenRecursively(baseDir, object : VirtualFileVisitor<Void>() {
+                        override fun visitFile(file: VirtualFile): Boolean {
+                            if (file.isDirectory) {
+                                val name = file.name
+                                if (name == "target" || name == "build" || name == ".idea" || name == ".git" || name == "node_modules" || name == ".gradle" || name == "out") {
+                                    return false
+                                }
+                            } else if (file.extension == "java") {
+                                filesToScan.add(file)
                             }
-                        } else if (file.extension == "java") {
-                            filesToScan.add(file)
+                            return true
                         }
-                        return true
-                    }
-                })
+                    })
+                }
             }
         }
 
-        // Process files
+        // 3. Process project Java PSI files
         for (vFile in filesToScan) {
             val path = vFile.path
-            if (path.contains("/target/") || path.contains("/build/") || path.contains("/.idea/") || path.contains("/.git/")) {
+            if (path.contains("/target/") || path.contains("/build/") || path.contains("/.idea/") || path.contains("/.git/") || path.contains("/.gradle/") || path.contains("/out/")) {
                 continue
             }
 
