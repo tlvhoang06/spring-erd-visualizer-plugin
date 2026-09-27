@@ -175,7 +175,7 @@ object FieldAnalyzer {
         val colVal = annotation.findAttributeValue("column")
         if (colVal is PsiAnnotation) {
             val colName = getStringAttribute(colVal, "name")
-            if (!colName.isNullOrBlank()) {
+            if (colName != null && colName.isNotBlank()) {
                 map[attrName] = colName
             }
         }
