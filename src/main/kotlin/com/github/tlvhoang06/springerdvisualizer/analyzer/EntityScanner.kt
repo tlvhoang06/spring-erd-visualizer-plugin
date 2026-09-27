@@ -59,9 +59,15 @@ object EntityScanner {
             }
         }
 
+        val pkgName = psiClass.qualifiedName?.let {
+            val lastDot = it.lastIndexOf('.')
+            if (lastDot > 0) it.substring(0, lastDot) else ""
+        } ?: ""
+
         return EntityModel(
             name = entityName,
             tableName = tableName,
+            packageName = pkgName,
             fields = fields,
             relationships = relationships
         )

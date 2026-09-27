@@ -47,13 +47,13 @@ class ErdCanvasPanel : JPanel() {
             repaint()
         }
 
-    // High-contrast modern color palette (Direct JBColor without theme suppression)
-    private val canvasBgColor = JBColor(Color(248, 250, 252), Color(15, 23, 42)) // Slate 50 / Slate 900
-    private val cardBgColor = JBColor(Color(255, 255, 255), Color(30, 41, 59))  // Pure White / Slate 800
-    private val headerBgColor = JBColor(Color(241, 245, 249), Color(24, 34, 53)) // Slate 100 / Deep Slate Blue
-    private val borderColor = JBColor(Color(203, 213, 225), Color(71, 85, 105)) // Slate 300 / Slate 600
+    // High-contrast Pure Dark color palette
+    private val canvasBgColor = JBColor(Color(248, 250, 252), Color(18, 18, 18)) // Pure Dark Black (#121212)
+    private val cardBgColor = JBColor(Color(255, 255, 255), Color(28, 30, 36))  // Pure White / Deep Slate Card (#1C1E24)
+    private val headerBgColor = JBColor(Color(241, 245, 249), Color(20, 22, 28)) // Header box (#14161C)
+    private val borderColor = JBColor(Color(203, 213, 225), Color(55, 60, 72)) // Subtle Card Border (#373C48)
     private val selectedBorderColor = JBColor(Color(37, 99, 235), Color(56, 189, 248)) // Electric Blue / Sky Blue 400
-    private val separatorColor = JBColor(Color(226, 232, 240), Color(51, 65, 85)) // Slate 200 / Slate 700
+    private val separatorColor = JBColor(Color(226, 232, 240), Color(45, 49, 60)) // Row divider
     private val pkBoundarySeparatorColor = JBColor(Color(245, 158, 11), Color(217, 119, 6)) // Amber separator line
 
     private val primaryTextColor = JBColor(Color(15, 23, 42), Color(248, 250, 252)) // Crisp Slate 900 / Crisp White 50
@@ -283,7 +283,7 @@ class ErdCanvasPanel : JPanel() {
         g2.color = canvasBgColor
         g2.fillRect(0, 0, width, height)
 
-        val dotColor = JBColor(Color(203, 213, 225), Color(51, 65, 85))
+        val dotColor = JBColor(Color(203, 213, 225), Color(40, 40, 40))
         g2.color = dotColor
         val gridSize = (30 * zoomScale).toInt().coerceAtLeast(15)
 
@@ -323,7 +323,7 @@ class ErdCanvasPanel : JPanel() {
 
         try {
             // 0. Card drop shadow
-            g2.color = JBColor(Color(0, 0, 0, 15), Color(0, 0, 0, 70))
+            g2.color = JBColor(Color(0, 0, 0, 15), Color(0, 0, 0, 90))
             g2.fill(RoundRectangle2D.Float(r.x.toFloat() + 2f, r.y.toFloat() + 2f, r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
 
             // 1. Card body background fill
@@ -338,12 +338,13 @@ class ErdCanvasPanel : JPanel() {
             g2.color = headerBgColor
             g2.fill(headerArea)
 
-            // 3. Header top accent bar (Multi-colored per entity!)
+            // 3. Header top accent bar (Grouped by Package/Module!)
             val accentArea = Area(RoundRectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), r.height.toFloat(), cornerRadius, cornerRadius))
             val accentClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), 4.0f)
             accentArea.intersect(Area(accentClip))
 
-            val accentIndex = Math.abs(entity.name.hashCode()) % headerAccentPalette.size
+            val groupKey = if (entity.packageName.isNotBlank()) entity.packageName else entity.name
+            val accentIndex = Math.abs(groupKey.hashCode()) % headerAccentPalette.size
             val entityAccentColor = if (isHighlighted) selectedBorderColor else headerAccentPalette[accentIndex]
 
             g2.color = entityAccentColor
