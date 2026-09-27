@@ -471,10 +471,10 @@ class ErdCanvasPanel : JPanel() {
         val path = java.awt.geom.Path2D.Float()
         path.moveTo(p1.x.toDouble(), p1.y.toDouble())
 
-        val midX = (p1.x + p2.x) / 2
-        val midY = (p1.y + p2.y) / 2
-
         val isHorizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y)
+
+        val midX = if (isHorizontal) findObstacleFreeMidX((p1.x + p2.x) / 2, p1, p2, rel.sourceEntity, rel.targetEntity) else (p1.x + p2.x) / 2
+        val midY = if (!isHorizontal) findObstacleFreeMidY((p1.y + p2.y) / 2, p1, p2, rel.sourceEntity, rel.targetEntity) else (p1.y + p2.y) / 2
 
         if (isHorizontal) {
             path.lineTo(midX.toDouble(), p1.y.toDouble())
@@ -501,6 +501,54 @@ class ErdCanvasPanel : JPanel() {
 
         drawCardinalityBadge(g2, p1, far1, srcLabel, isHighlighted)
         drawCardinalityBadge(g2, p2, far2, tgtLabel, isHighlighted)
+    }
+
+    private fun findObstacleFreeMidX(initialMidX: Int, p1: Point, p2: Point, sourceEntity: String, targetEntity: String): Int {
+        var currentMidX = initialMidX
+        val yMin = Math.min(p1.y, p2.y)
+        val yMax = Math.max(p1.y, p2.y)
+
+        for (attempt in 0..3) {
+            val obstacle = nodes.values.firstOrNull { node ->
+                if (node.entity.name == sourceEntity || node.entity.name == targetEntity) return@firstOrNull false
+                val r = node.bounds
+                val intersectsX = currentMidX >= r.x - 15 && currentMidX <= r.x + r.width + 15
+                val intersectsY = !(yMax < r.y || yMin > r.y + r.height)
+                intersectsX && intersectsY
+            } ?: break
+
+            val r = obstacle.bounds
+            currentMidX = if (p1.x < r.x) {
+                r.x - 25
+            } else {
+                r.x + r.width + 25
+            }
+        }
+        return currentMidX
+    }
+
+    private fun findObstacleFreeMidY(initialMidY: Int, p1: Point, p2: Point, sourceEntity: String, targetEntity: String): Int {
+        var currentMidY = initialMidY
+        val xMin = Math.min(p1.x, p2.x)
+        val xMax = Math.max(p1.x, p2.x)
+
+        for (attempt in 0..3) {
+            val obstacle = nodes.values.firstOrNull { node ->
+                if (node.entity.name == sourceEntity || node.entity.name == targetEntity) return@firstOrNull false
+                val r = node.bounds
+                val intersectsY = currentMidY >= r.y - 15 && currentMidY <= r.y + r.height + 15
+                val intersectsX = !(xMax < r.x || xMin > r.x + r.width)
+                intersectsX && intersectsY
+            } ?: break
+
+            val r = obstacle.bounds
+            currentMidY = if (p1.y < r.y) {
+                r.y - 25
+            } else {
+                r.y + r.height + 25
+            }
+        }
+        return currentMidY
     }
 
     private fun calculateOrthogonalAnchors(sR: Rectangle, tR: Rectangle): Pair<Point, Point> {

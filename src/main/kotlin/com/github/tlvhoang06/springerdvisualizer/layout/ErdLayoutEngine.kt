@@ -17,8 +17,8 @@ object ErdLayoutEngine {
     const val HEADER_HEIGHT = 46
     const val ROW_HEIGHT = 24
     const val MIN_CARD_HEIGHT = 70
-    const val H_GAP = 100
-    const val V_GAP = 85
+    const val H_GAP = 120
+    const val V_GAP = 100
 
     fun calculateCardWidth(entity: EntityModel): Int {
         var maxLen = entity.name.length + 4
