@@ -67,11 +67,22 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
             })
         }
 
+        val searchTextField = com.intellij.ui.SearchTextField(false).apply {
+            textEditor.emptyText.text = "Search entities or fields..."
+            font = Font("Dialog", Font.PLAIN, 11)
+            addDocumentListener(object : com.intellij.ui.DocumentAdapter() {
+                override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                    canvasPanel.filterQuery = text
+                }
+            })
+        }
+
         val toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLWINDOW_TITLE, toolbarGroup, true)
         toolbar.targetComponent = mainPanel
 
         val topPanel = JPanel(BorderLayout()).apply {
             add(toolbar.component, BorderLayout.WEST)
+            add(searchTextField, BorderLayout.CENTER)
             add(statusLabel, BorderLayout.EAST)
         }
 

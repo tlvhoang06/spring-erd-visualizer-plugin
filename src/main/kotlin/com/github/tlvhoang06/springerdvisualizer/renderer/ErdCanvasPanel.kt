@@ -41,6 +41,12 @@ class ErdCanvasPanel : JPanel() {
     private var selectedNodeName: String? = null
     private var hoveredNodeName: String? = null
 
+    var filterQuery: String = ""
+        set(value) {
+            field = value.trim().lowercase()
+            repaint()
+        }
+
     // Theme-aware color palette
     private val cardBgColor = JBColor.namedColor("Panel.background", JBColor(Color(255, 255, 255), Color(43, 45, 48)))
     private val headerBgColor = JBColor.namedColor("TableHeader.background", JBColor(Color(234, 238, 245), Color(35, 40, 48)))
@@ -230,6 +236,8 @@ class ErdCanvasPanel : JPanel() {
         }
 
         val activeEntity = selectedNodeName ?: hoveredNodeName
+        val query = filterQuery
+        val isFiltering = query.isNotEmpty()
 
         // 1. Draw relationships
         val deduplicatedRels = graphModel.deduplicatedRelationships()
@@ -240,15 +248,19 @@ class ErdCanvasPanel : JPanel() {
 
         // 2. Draw entity nodes
         for (node in nodes.values) {
+            val matchesFilter = !isFiltering || node.entity.name.lowercase().contains(query) ||
+                    (!node.entity.tableName.isNullOrBlank() && node.entity.tableName!!.lowercase().contains(query)) ||
+                    node.entity.fields.any { it.name.lowercase().contains(query) || it.type.lowercase().contains(query) }
+
             val isSelected = node.entity.name == selectedNodeName
             val isHovered = node.entity.name == hoveredNodeName
             val isConnected = activeEntity != null && deduplicatedRels.any {
                 (it.sourceEntity == activeEntity && it.targetEntity == node.entity.name) ||
                 (it.targetEntity == activeEntity && it.sourceEntity == node.entity.name)
             }
-            val isDimmed = activeEntity != null && !isSelected && !isHovered && !isConnected
+            val isDimmed = (activeEntity != null && !isSelected && !isHovered && !isConnected) || (isFiltering && !matchesFilter)
 
-            drawEntityCard(g2, node, isSelected || isHovered, isDimmed)
+            drawEntityCard(g2, node, isSelected || isHovered || (isFiltering && matchesFilter), isDimmed)
         }
     }
 
