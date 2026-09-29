@@ -17,8 +17,8 @@ object ErdLayoutEngine {
     const val HEADER_HEIGHT = 46
     const val ROW_HEIGHT = 24
     const val MIN_CARD_HEIGHT = 70
-    const val H_GAP = 120
-    const val V_GAP = 100
+    const val H_GAP = 160
+    const val V_GAP = 120
 
     fun calculateCardWidth(entity: EntityModel): Int {
         var maxLen = entity.name.length + 4
@@ -45,6 +45,13 @@ object ErdLayoutEngine {
 
         // 1. Group entities by Package / Module
         val modules = graph.entities.groupBy { it.packageName.ifBlank { "default" } }
+
+        // Degree map to detect hub nodes (high-degree entities)
+        val degreeMap = mutableMapOf<String, Int>()
+        for (rel in graph.deduplicatedRelationships()) {
+            degreeMap[rel.sourceEntity] = (degreeMap[rel.sourceEntity] ?: 0) + 1
+            degreeMap[rel.targetEntity] = (degreeMap[rel.targetEntity] ?: 0) + 1
+        }
 
         // Create initial node bounds map
         val nodeMap = mutableMapOf<String, NodeBounds>()
@@ -91,15 +98,15 @@ object ErdLayoutEngine {
 
             if ((mIndex + 1) % colsPerGrid == 0) {
                 clusterOffsetX = 60.0
-                clusterOffsetY += maxClusterHeight + 140.0
+                clusterOffsetY += maxClusterHeight + 180.0
                 maxClusterHeight = 0.0
             } else {
-                clusterOffsetX += 450.0
+                clusterOffsetX += 550.0
             }
         }
 
         // 3. Force-Directed & Overlap Removal Iterations
-        val iterations = 120
+        val iterations = 140
         val rels = graph.deduplicatedRelationships()
 
         for (iter in 0 until iterations) {
@@ -121,7 +128,7 @@ object ErdLayoutEngine {
                 forces[e.name] = Point2D(0.0, 0.0)
             }
 
-            // B. Spring Attraction along relationships
+            // B. Spring Attraction along relationships (Rest length 320px)
             for (rel in rels) {
                 val p1 = nodePos[rel.sourceEntity] ?: continue
                 val p2 = nodePos[rel.targetEntity] ?: continue
@@ -129,7 +136,14 @@ object ErdLayoutEngine {
                 val dx = p2.x - p1.x
                 val dy = p2.y - p1.y
                 val dist = Math.hypot(dx, dy).coerceAtLeast(1.0)
-                val force = (dist - 200.0) * 0.03
+
+                // Extra clearance force for Hub nodes (degree > 4)
+                val srcDegree = degreeMap[rel.sourceEntity] ?: 1
+                val tgtDegree = degreeMap[rel.targetEntity] ?: 1
+                val isHubRel = srcDegree > 4 || tgtDegree > 4
+                val targetRestLength = if (isHubRel) 380.0 else 320.0
+
+                val force = (dist - targetRestLength) * 0.025
 
                 val fx = (dx / dist) * force
                 val fy = (dy / dist) * force

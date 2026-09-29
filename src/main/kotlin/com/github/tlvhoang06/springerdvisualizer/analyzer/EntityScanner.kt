@@ -44,7 +44,6 @@ object EntityScanner {
                 if (relModel != null) {
                     relationships.add(relModel)
                 }
-                continue
             }
             if (FieldAnalyzer.isEmbeddedField(field)) {
                 val embeddedFields = FieldAnalyzer.analyzeEmbeddedField(field)

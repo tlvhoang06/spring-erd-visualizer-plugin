@@ -497,35 +497,79 @@ class ErdCanvasPanel : JPanel() {
         g2.color = lineColor
         g2.stroke = BasicStroke(strokeWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
 
-        // Draw orthogonal path
+        // Draw path with minimal bends (prefer straight lines if clear)
         val path = java.awt.geom.Path2D.Float()
         path.moveTo(p1.x.toDouble(), p1.y.toDouble())
 
-        val isHorizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y)
-        val laneOffset = (relIndex % 5 - 2) * 14
+        val far1: Point
+        val far2: Point
 
-        val initialMidX = (p1.x + p2.x) / 2 + laneOffset
-        val initialMidY = (p1.y + p2.y) / 2 + laneOffset
-
-        val midX = if (isHorizontal) findObstacleFreeMidX(initialMidX, p1, p2, rel.sourceEntity, rel.targetEntity) else initialMidX
-        val midY = if (!isHorizontal) findObstacleFreeMidY(initialMidY, p1, p2, rel.sourceEntity, rel.targetEntity) else initialMidY
-
-        if (isHorizontal) {
-            path.lineTo(midX.toDouble(), p1.y.toDouble())
-            path.lineTo(midX.toDouble(), p2.y.toDouble())
+        if (isPathClear(p1, p2, rel.sourceEntity, rel.targetEntity)) {
+            // Direct straight line (0 kinks)
             path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+            far1 = p2
+            far2 = p1
         } else {
-            path.lineTo(p1.x.toDouble(), midY.toDouble())
-            path.lineTo(p2.x.toDouble(), midY.toDouble())
-            path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+            val isHorizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y)
+            val corner1 = if (isHorizontal) Point(p2.x, p1.y) else Point(p1.x, p2.y)
+            val corner2 = if (isHorizontal) Point(p1.x, p2.y) else Point(p2.x, p1.y)
+
+            if (isPathClear(p1, corner1, rel.sourceEntity, rel.targetEntity) &&
+                isPathClear(corner1, p2, rel.sourceEntity, rel.targetEntity)) {
+                // 1-bend L-shape (1 kink)
+                path.lineTo(corner1.x.toDouble(), corner1.y.toDouble())
+                path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+                far1 = corner1
+                far2 = corner1
+            } else if (isPathClear(p1, corner2, rel.sourceEntity, rel.targetEntity) &&
+                       isPathClear(corner2, p2, rel.sourceEntity, rel.targetEntity)) {
+                // 1-bend L-shape (1 kink)
+                path.lineTo(corner2.x.toDouble(), corner2.y.toDouble())
+                path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+                far1 = corner2
+                far2 = corner2
+            } else {
+                // 3-segment obstacle-free detour (2 kinks)
+                val laneOffset = (relIndex % 5 - 2) * 14
+                val initialMidX = (p1.x + p2.x) / 2 + laneOffset
+                val initialMidY = (p1.y + p2.y) / 2 + laneOffset
+
+                val midX = if (isHorizontal) findObstacleFreeMidX(initialMidX, p1, p2, rel.sourceEntity, rel.targetEntity) else initialMidX
+                val midY = if (!isHorizontal) findObstacleFreeMidY(initialMidY, p1, p2, rel.sourceEntity, rel.targetEntity) else initialMidY
+
+                if (isHorizontal) {
+                    path.lineTo(midX.toDouble(), p1.y.toDouble())
+                    path.lineTo(midX.toDouble(), p2.y.toDouble())
+                    path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+                    far1 = Point(midX, p1.y)
+                    far2 = Point(midX, p2.y)
+                } else {
+                    path.lineTo(p1.x.toDouble(), midY.toDouble())
+                    path.lineTo(p2.x.toDouble(), midY.toDouble())
+                    path.lineTo(p2.x.toDouble(), p2.y.toDouble())
+                    far1 = Point(p1.x, midY)
+                    far2 = Point(p2.x, midY)
+                }
+            }
         }
 
         g2.draw(path)
-
-        val far1 = if (isHorizontal) Point(midX, p1.y) else Point(p1.x, midY)
-        val far2 = if (isHorizontal) Point(midX, p2.y) else Point(p2.x, midY)
-
         return Pair(Pair(p1, far1), Pair(p2, far2))
+    }
+
+    private fun isSegmentIntersectingNode(p1: Point, p2: Point, nodeRect: Rectangle): Boolean {
+        val expanded = Rectangle(nodeRect.x - 10, nodeRect.y - 10, nodeRect.width + 20, nodeRect.height + 20)
+        return expanded.intersectsLine(p1.x.toDouble(), p1.y.toDouble(), p2.x.toDouble(), p2.y.toDouble())
+    }
+
+    private fun isPathClear(p1: Point, p2: Point, sourceEntity: String, targetEntity: String): Boolean {
+        for (node in nodes.values) {
+            if (node.entity.name == sourceEntity || node.entity.name == targetEntity) continue
+            if (isSegmentIntersectingNode(p1, p2, node.bounds)) {
+                return false
+            }
+        }
+        return true
     }
 
     private fun findObstacleFreeMidX(initialMidX: Int, p1: Point, p2: Point, sourceEntity: String, targetEntity: String): Int {
@@ -537,16 +581,16 @@ class ErdCanvasPanel : JPanel() {
             val obstacle = nodes.values.firstOrNull { node ->
                 if (node.entity.name == sourceEntity || node.entity.name == targetEntity) return@firstOrNull false
                 val r = node.bounds
-                val intersectsX = currentMidX >= r.x - 15 && currentMidX <= r.x + r.width + 15
+                val intersectsX = currentMidX >= r.x - 20 && currentMidX <= r.x + r.width + 20
                 val intersectsY = !(yMax < r.y || yMin > r.y + r.height)
                 intersectsX && intersectsY
             } ?: break
 
             val r = obstacle.bounds
             currentMidX = if (p1.x < r.x) {
-                r.x - 25
+                r.x - 55
             } else {
-                r.x + r.width + 25
+                r.x + r.width + 55
             }
         }
         return currentMidX
@@ -561,16 +605,16 @@ class ErdCanvasPanel : JPanel() {
             val obstacle = nodes.values.firstOrNull { node ->
                 if (node.entity.name == sourceEntity || node.entity.name == targetEntity) return@firstOrNull false
                 val r = node.bounds
-                val intersectsY = currentMidY >= r.y - 15 && currentMidY <= r.y + r.height + 15
+                val intersectsY = currentMidY >= r.y - 20 && currentMidY <= r.y + r.height + 20
                 val intersectsX = !(xMax < r.x || xMin > r.x + r.width)
                 intersectsX && intersectsY
             } ?: break
 
             val r = obstacle.bounds
             currentMidY = if (p1.y < r.y) {
-                r.y - 25
+                r.y - 45
             } else {
-                r.y + r.height + 25
+                r.y + r.height + 45
             }
         }
         return currentMidY
@@ -586,7 +630,9 @@ class ErdCanvasPanel : JPanel() {
         val sCenter = Point(sR.x + sR.width / 2, sR.y + sR.height / 2)
         val tCenter = Point(tR.x + tR.width / 2, tR.y + tR.height / 2)
 
-        val isHorizontal = Math.abs(sCenter.x - tCenter.x) >= Math.abs(sCenter.y - tCenter.y)
+        val dx = (tCenter.x - sCenter.x).toDouble()
+        val dy = (tCenter.y - sCenter.y).toDouble()
+        val isHorizontal = Math.abs(dx) * 0.9 >= Math.abs(dy)
 
         val sSideRels = allRels.filter { r ->
             val sN = nodes[r.sourceEntity] ?: return@filter false
