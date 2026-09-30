@@ -58,11 +58,32 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
                     canvasPanel.zoomOut()
                 }
             })
+            add(object : AnAction("Toggle Module Legend", "Show/hide module color legend panel", AllIcons.Gutter.Colors), DumbAware {
+                override fun actionPerformed(e: AnActionEvent) {
+                    canvasPanel.showLegend = !canvasPanel.showLegend
+                }
+            })
             add(object : AnAction("Export Mermaid", "Copy Mermaid ERD diagram syntax to clipboard", AllIcons.Actions.Copy), DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     val mermaidText = com.github.tlvhoang06.springerdvisualizer.exporter.MermaidExporter.export(canvasPanel.graphModel)
                     com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(mermaidText))
                     com.intellij.openapi.ui.Messages.showInfoMessage(project, "Mermaid ERD syntax copied to clipboard!", "Export Mermaid")
+                }
+            })
+            add(object : AnAction("Export PNG Image", "Export ERD diagram canvas to PNG image file", AllIcons.ToolbarDecorator.Export), DumbAware {
+                override fun actionPerformed(e: AnActionEvent) {
+                    val descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                    descriptor.title = "Select Folder for ERD PNG Export"
+                    val file = com.intellij.openapi.fileChooser.FileChooser.chooseFile(descriptor, project, null)
+                    if (file != null) {
+                        val outputFile = java.io.File(file.path, "spring_erd_diagram.png")
+                        val success = com.github.tlvhoang06.springerdvisualizer.exporter.ImageExporter.exportToPng(canvasPanel, outputFile)
+                        if (success) {
+                            com.intellij.openapi.ui.Messages.showInfoMessage(project, "Exported ERD diagram to PNG:\n${outputFile.absolutePath}", "Export PNG")
+                        } else {
+                            com.intellij.openapi.ui.Messages.showErrorDialog(project, "Failed to export PNG image.", "Export PNG")
+                        }
+                    }
                 }
             })
         }

@@ -4,21 +4,23 @@ An IntelliJ IDEA plugin that visualizes JPA/Hibernate Java entities as an intera
 
 ## Features
 
-- **Automatic Entity Discovery**: Scans Java source code using IntelliJ PSI to detect Spring Boot / JPA entities.
+- **Automatic Entity Discovery**: Scans Java source code using IntelliJ PSI to detect Spring Boot / JPA entities asynchronously on background threads.
 - **Full JPA Annotation Support**:
   - Entity & Table: `@Entity`, `@Table(name = "...")`
   - Columns & Keys: `@Id`, `@EmbeddedId`, `@Column(name, nullable, unique)`
   - Component Embedding: `@Embedded`, `@Embeddable`, `@AttributeOverride`, `@AttributeOverrides`
   - Relationships: `@OneToOne`, `@OneToMany`, `@ManyToOne`, `@ManyToMany`, `@JoinColumn`, `@JoinTable`, `mappedBy`
+  - Object & Collection Fields: Displays fields like `Set<ObjectB>`, `List<Order>`, and `@ManyToOne Department` directly inside Entity cards.
 - **Interactive ERD Canvas**:
-  - Theme-aware styling matching IntelliJ Light & Dark (Darcula) themes.
-  - Highlighted Entity Header boxes with top accent bars.
-  - Distinct PK gold badges and colorized cardinality badges (`1` Sapphire Blue, `N`/`M` Amethyst Purple).
-  - Horizontal separator lines between attribute rows.
-  - Full interaction controls: Zoom, Pan, Drag entity nodes, Fit-to-screen, and Reset view.
+  - **Pure Dark & Light Themes**: High-contrast theme-aware styling matching IntelliJ Dark (#121212) and Light themes.
+  - **Interactive Module Color Legend**: Glassmorphic overlay panel categorizing entities by package/module with color swatches, entity counts, and live hover & click highlighting.
+  - **Straight & Minimum-Kink Line Routing**: Unobstructed relationship lines route as 0-kink direct straight lines or 1-kink L-shapes for clutter-free diagrams.
+  - **Solid Mask Cardinality Badges**: Colorized badges (`1` Sapphire Blue, `N`/`M` Amethyst Purple) with solid canvas-matching background cutout masks to prevent line bleed.
+  - **Real-Time Search & Filtering**: Live search bar to filter entities by name, table name, or field attributes.
+  - **Full Canvas Controls**: Zoom, Pan, Drag individual entity nodes, Fit-to-screen, and Reset view.
 - **Export Capabilities**:
   - **Export Mermaid**: Copy standard Mermaid `erDiagram` Markdown syntax with 1 click to clipboard for use in READMEs, Notion, or documentation.
-  - **Export PNG**: Export high-resolution PNG images of the ERD canvas.
+  - **Export PNG Image**: Save high-resolution PNG images of the ERD canvas (including the Module Color Legend overlay).
 
 ## Supported Annotations
 

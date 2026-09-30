@@ -41,11 +41,28 @@ class ErdCanvasPanel : JPanel() {
     private var selectedNodeName: String? = null
     private var hoveredNodeName: String? = null
 
+    var showLegend: Boolean = true
+        set(value) {
+            field = value
+            repaint()
+        }
+
+    private var hoveredLegendModule: String? = null
+    private var selectedLegendModule: String? = null
+    private var legendBounds: Rectangle? = null
+    private val legendItemBounds = mutableMapOf<String, Rectangle>()
+
     var filterQuery: String = ""
         set(value) {
             field = value.trim().lowercase()
             repaint()
         }
+
+    fun getModuleColor(pkgName: String): Color {
+        val groupKey = pkgName.ifBlank { "default" }
+        val accentIndex = Math.abs(groupKey.hashCode()) % headerAccentPalette.size
+        return headerAccentPalette[accentIndex]
+    }
 
     // High-contrast Pure Dark color palette
     private val canvasBgColor = JBColor(Color(248, 250, 252), Color(18, 18, 18)) // Pure Dark Black (#121212)
@@ -91,7 +108,18 @@ class ErdCanvasPanel : JPanel() {
         val mouseHandler = object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) {
                 lastMousePoint = e.point
-                val modelPoint = screenToModel(e.point)
+                val screenPt = e.point
+
+                if (showLegend && legendBounds?.contains(screenPt) == true) {
+                    val clickedPkg = legendItemBounds.entries.firstOrNull { it.value.contains(screenPt) }?.key
+                    if (clickedPkg != null) {
+                        selectedLegendModule = if (selectedLegendModule == clickedPkg) null else clickedPkg
+                        repaint()
+                        return
+                    }
+                }
+
+                val modelPoint = screenToModel(screenPt)
 
                 val clicked = nodes.values.firstOrNull { it.bounds.contains(modelPoint) }
                 if (clicked != null) {
@@ -100,12 +128,27 @@ class ErdCanvasPanel : JPanel() {
                     dragOffset = Point(modelPoint.x - clicked.bounds.x, modelPoint.y - clicked.bounds.y)
                 } else {
                     selectedNodeName = null
+                    selectedLegendModule = null
                 }
                 repaint()
             }
 
             override fun mouseMoved(e: MouseEvent) {
-                val modelPoint = screenToModel(e.point)
+                val screenPt = e.point
+
+                if (showLegend && legendBounds?.contains(screenPt) == true) {
+                    val hoveredPkg = legendItemBounds.entries.firstOrNull { it.value.contains(screenPt) }?.key
+                    if (hoveredPkg != hoveredLegendModule) {
+                        hoveredLegendModule = hoveredPkg
+                        repaint()
+                    }
+                    return
+                } else if (hoveredLegendModule != null) {
+                    hoveredLegendModule = null
+                    repaint()
+                }
+
+                val modelPoint = screenToModel(screenPt)
                 val hovered = nodes.values.firstOrNull { it.bounds.contains(modelPoint) }
                 val newHoverName = hovered?.entity?.name
                 if (newHoverName != hoveredNodeName) {
@@ -251,6 +294,7 @@ class ErdCanvasPanel : JPanel() {
         }
 
         val activeEntity = selectedNodeName ?: hoveredNodeName
+        val activeModule = selectedLegendModule ?: hoveredLegendModule
         val query = filterQuery
         val isFiltering = query.isNotEmpty()
 
@@ -289,9 +333,14 @@ class ErdCanvasPanel : JPanel() {
                 (it.sourceEntity == activeEntity && it.targetEntity == node.entity.name) ||
                 (it.targetEntity == activeEntity && it.sourceEntity == node.entity.name)
             }
-            val isDimmed = (activeEntity != null && !isSelected && !isHovered && !isConnected) || (isFiltering && !matchesFilter)
+            val isModuleMatch = activeModule != null && (node.entity.packageName.ifBlank { "default" } == activeModule)
+            val isModuleDimmed = activeModule != null && !isModuleMatch
 
-            drawEntityCard(g2, node, isSelected || isHovered || (isFiltering && matchesFilter), isDimmed)
+            val isHighlightedCard = isSelected || isHovered || isModuleMatch || (isFiltering && matchesFilter)
+            val isDimmedCard = (activeEntity != null && !isSelected && !isHovered && !isConnected) ||
+                    (isFiltering && !matchesFilter) || isModuleDimmed
+
+            drawEntityCard(g2, node, isHighlightedCard, isDimmedCard)
         }
 
         // Pass 3: Draw Cardinality Badges ON TOP of all lines and cards
@@ -300,6 +349,101 @@ class ErdCanvasPanel : JPanel() {
             val isHL = badgeHighlightQueue[i]
             drawCardinalityBadge(g2, endPt, farPt, label, isHL)
         }
+
+        // Pass 4: Draw Module Color Legend Overlay (screen space overlay)
+        drawModuleLegend(g2)
+    }
+
+    private fun drawModuleLegend(g2: Graphics2D) {
+        if (!showLegend || graphModel.entities.isEmpty()) return
+
+        val modules = graphModel.entities.groupBy { it.packageName.ifBlank { "default" } }
+        if (modules.isEmpty()) return
+
+        val originalTransform = g2.transform
+
+        // Reset transform to screen space for fixed overlay rendering
+        g2.transform = java.awt.geom.AffineTransform()
+
+        val padding = 12
+        val itemHeight = 24
+        val headerHeight = 32
+        val boxWidth = 250
+        val boxHeight = headerHeight + modules.size * itemHeight + padding
+
+        val boxX = width - boxWidth - 16
+        val boxY = 16
+
+        legendBounds = Rectangle(boxX, boxY, boxWidth, boxHeight)
+
+        val cornerRadius = 10f
+        // Glassmorphic background matching pure dark theme
+        g2.color = JBColor(Color(255, 255, 255, 235), Color(24, 26, 32, 235))
+        g2.fill(RoundRectangle2D.Float(boxX.toFloat(), boxY.toFloat(), boxWidth.toFloat(), boxHeight.toFloat(), cornerRadius, cornerRadius))
+
+        // Shadow
+        g2.color = JBColor(Color(0, 0, 0, 20), Color(0, 0, 0, 90))
+        g2.fill(RoundRectangle2D.Float(boxX.toFloat() + 2f, boxY.toFloat() + 2f, boxWidth.toFloat(), boxHeight.toFloat(), cornerRadius, cornerRadius))
+
+        // Border
+        g2.color = JBColor(Color(203, 213, 225, 200), Color(55, 60, 72, 200))
+        g2.stroke = BasicStroke(1.0f)
+        g2.draw(RoundRectangle2D.Float(boxX.toFloat(), boxY.toFloat(), boxWidth.toFloat(), boxHeight.toFloat(), cornerRadius, cornerRadius))
+
+        // Title Header
+        g2.color = primaryTextColor
+        g2.font = Font("Dialog", Font.BOLD, 11)
+        g2.drawString("MODULE COLOR LEGEND", boxX + 12, boxY + 20)
+
+        // Header Divider
+        g2.color = separatorColor
+        g2.drawLine(boxX, boxY + headerHeight - 4, boxX + boxWidth, boxY + headerHeight - 4)
+
+        // Module Items
+        var yOffset = boxY + headerHeight + 14
+
+        val moduleKeys = modules.keys.sorted()
+        legendItemBounds.clear()
+
+        for (pkg in moduleKeys) {
+            val entityList = modules[pkg] ?: emptyList()
+            val color = getModuleColor(pkg)
+
+            val itemRect = Rectangle(boxX + 6, yOffset - 16, boxWidth - 12, itemHeight)
+            legendItemBounds[pkg] = itemRect
+
+            val isHovered = (hoveredLegendModule == pkg)
+            val isSelected = (selectedLegendModule == pkg)
+
+            if (isHovered || isSelected) {
+                g2.color = JBColor(Color(226, 232, 240, 180), Color(45, 49, 60, 180))
+                g2.fill(RoundRectangle2D.Float(itemRect.x.toFloat(), itemRect.y.toFloat(), itemRect.width.toFloat(), itemRect.height.toFloat(), 4f, 4f))
+            }
+
+            // Swatch circle
+            g2.color = color
+            g2.fillOval(boxX + 14, yOffset - 10, 12, 12)
+
+            // Package label
+            val shortPkg = if (pkg.contains('.')) pkg.substringAfterLast('.') else pkg
+            val displayPkg = if (shortPkg.length > 18) shortPkg.take(16) + ".." else shortPkg
+
+            g2.color = primaryTextColor
+            g2.font = Font("Dialog", if (isSelected) Font.BOLD else Font.PLAIN, 11)
+            g2.drawString(displayPkg, boxX + 34, yOffset)
+
+            // Entity count label on right
+            val countText = "${entityList.size} entities"
+            g2.color = secondaryTextColor
+            g2.font = Font("Dialog", Font.ITALIC, 10)
+            val fm = g2.fontMetrics
+            val tw = fm.stringWidth(countText)
+            g2.drawString(countText, boxX + boxWidth - tw - 12, yOffset)
+
+            yOffset += itemHeight
+        }
+
+        g2.transform = originalTransform
     }
 
     private fun drawGridBackground(g2: Graphics2D) {
