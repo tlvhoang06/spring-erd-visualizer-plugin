@@ -58,10 +58,42 @@ class ErdCanvasPanel : JPanel() {
             repaint()
         }
 
+    private val moduleColors = mutableMapOf<String, Color>()
+
+    fun updateModuleColors() {
+        moduleColors.clear()
+        val sortedPkgs = graphModel.entities
+            .map { it.packageName.ifBlank { "default" } }
+            .distinct()
+            .sorted()
+
+        for ((index, pkg) in sortedPkgs.withIndex()) {
+            val hue = ((index * 137.508f) % 360f) / 360f
+            val color = Color.getHSBColor(hue, 0.75f, 0.90f)
+            moduleColors[pkg] = color
+        }
+    }
+
     fun getModuleColor(pkgName: String): Color {
         val groupKey = pkgName.ifBlank { "default" }
-        val accentIndex = Math.abs(groupKey.hashCode()) % headerAccentPalette.size
-        return headerAccentPalette[accentIndex]
+        return moduleColors[groupKey] ?: Color.getHSBColor(0f, 0.75f, 0.85f)
+    }
+
+    fun formatPackageDisplayName(pkg: String): String {
+        if (pkg.isBlank() || pkg == "default") return "default"
+        val parts = pkg.split('.').filter { it.isNotBlank() }
+        if (parts.isEmpty()) return pkg
+        if (parts.size == 1) return parts[0]
+
+        val genericNames = setOf("entity", "entities", "model", "domain", "persistence", "dao", "dto")
+        val last = parts.last()
+        val secondLast = parts[parts.size - 2]
+
+        return if (genericNames.contains(last.lowercase()) && parts.size >= 2) {
+            "$secondLast.$last"
+        } else {
+            last
+        }
     }
 
     // High-contrast Pure Dark color palette
@@ -201,6 +233,7 @@ class ErdCanvasPanel : JPanel() {
 
     fun setGraph(graph: ErdGraphModel) {
         this.graphModel = graph
+        this.updateModuleColors()
         this.nodes.clear()
         this.nodes.putAll(ErdLayoutEngine.layoutGraph(graph))
         this.selectedNodeName = null
@@ -425,8 +458,7 @@ class ErdCanvasPanel : JPanel() {
             g2.fillOval(boxX + 14, yOffset - 10, 12, 12)
 
             // Package label
-            val shortPkg = if (pkg.contains('.')) pkg.substringAfterLast('.') else pkg
-            val displayPkg = if (shortPkg.length > 18) shortPkg.take(16) + ".." else shortPkg
+            val displayPkg = formatPackageDisplayName(pkg)
 
             g2.color = primaryTextColor
             g2.font = Font("Dialog", if (isSelected) Font.BOLD else Font.PLAIN, 11)
@@ -510,9 +542,7 @@ class ErdCanvasPanel : JPanel() {
             val accentClip = Rectangle2D.Float(r.x.toFloat(), r.y.toFloat(), r.width.toFloat(), 4.0f)
             accentArea.intersect(Area(accentClip))
 
-            val groupKey = if (entity.packageName.isNotBlank()) entity.packageName else entity.name
-            val accentIndex = Math.abs(groupKey.hashCode()) % headerAccentPalette.size
-            val entityAccentColor = if (isHighlighted) selectedBorderColor else headerAccentPalette[accentIndex]
+            val entityAccentColor = if (isHighlighted) selectedBorderColor else getModuleColor(entity.packageName)
 
             g2.color = entityAccentColor
             g2.fill(accentArea)
