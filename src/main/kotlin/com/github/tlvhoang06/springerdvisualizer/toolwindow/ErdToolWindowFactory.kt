@@ -24,7 +24,9 @@ import javax.swing.border.EmptyBorder
 class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val canvasPanel = ErdCanvasPanel()
+        val canvasPanel = ErdCanvasPanel().apply {
+            this.project = project
+        }
         val statusLabel = JLabel(" Scanning project entities...").apply {
             font = Font("Dialog", Font.PLAIN, 11)
             foreground = JBColor.GRAY
@@ -61,6 +63,11 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
             add(object : AnAction("Toggle Module Legend", "Show/hide module color legend panel", AllIcons.Gutter.Colors), DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     canvasPanel.showLegend = !canvasPanel.showLegend
+                }
+            })
+            add(object : AnAction("Reset Hidden Entities", "Restore any hidden entities back to diagram", AllIcons.Actions.ShowCode), DumbAware {
+                override fun actionPerformed(e: AnActionEvent) {
+                    canvasPanel.resetHiddenEntities()
                 }
             })
             add(object : AnAction("Export Mermaid", "Copy Mermaid ERD diagram syntax to clipboard", AllIcons.Actions.Copy), DumbAware {
@@ -112,6 +119,12 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
 
         val content = ContentFactory.getInstance().createContent(mainPanel, "", false)
         toolWindow.contentManager.addContent(content)
+
+        // Register keyboard shortcuts (F5: Refresh, F: Fit, Ctrl+0: Reset, Ctrl+F: Search focus, Esc: Clear)
+        canvasPanel.registerKeyboardShortcuts(
+            onRefresh = { refreshDiagram(project, canvasPanel, statusLabel) },
+            onSearchFocus = { searchTextField.requestFocusInWindow() }
+        )
 
         // Initial scan
         refreshDiagram(project, canvasPanel, statusLabel)

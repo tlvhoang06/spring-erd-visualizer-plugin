@@ -5,19 +5,33 @@ An IntelliJ IDEA plugin that visualizes JPA/Hibernate Java entities as an intera
 ## Features
 
 - **Automatic Entity Discovery**: Scans Java source code using IntelliJ PSI to detect Spring Boot / JPA entities asynchronously on background threads.
-- **Full JPA Annotation Support**:
+- **Full JPA Annotation & Inheritance Support**:
   - Entity & Table: `@Entity`, `@Table(name = "...")`
+  - Inheritance: Inherits fields & PKs from parent classes annotated with `@MappedSuperclass` or `@Entity`
   - Columns & Keys: `@Id`, `@EmbeddedId`, `@Column(name, nullable, unique)`
   - Component Embedding: `@Embedded`, `@Embeddable`, `@AttributeOverride`, `@AttributeOverrides`
   - Relationships: `@OneToOne`, `@OneToMany`, `@ManyToOne`, `@ManyToMany`, `@JoinColumn`, `@JoinTable`, `mappedBy`
   - Object & Collection Fields: Displays fields like `Set<ObjectB>`, `List<Order>`, and `@ManyToOne Department` directly inside Entity cards.
+- **IDE Navigation & Context Actions**:
+  - **Jump to Source Code**: Double-click any entity card or field to immediately navigate to its corresponding Java source code class or field definition in the editor.
+  - **Right-Click Context Menu**:
+    - **Go to Source**: Direct navigation to Class or Field definition.
+    - **Focus Connected Entities**: Isolate and highlight all directly connected entities.
+    - **Hide Entity from Diagram**: Temporarily hide complex/unneeded entities from the canvas.
+    - **Copy Class / Table Name**: Copy exact entity class or database table name to clipboard.
 - **Interactive ERD Canvas**:
   - **Pure Dark & Light Themes**: High-contrast theme-aware styling matching IntelliJ Dark (#121212) and Light themes.
   - **Interactive Module Color Legend**: Glassmorphic overlay panel categorizing entities by package/module with color swatches, entity counts, and live hover & click highlighting.
   - **Straight & Minimum-Kink Line Routing**: Unobstructed relationship lines route as 0-kink direct straight lines or 1-kink L-shapes for clutter-free diagrams.
   - **Solid Mask Cardinality Badges**: Colorized badges (`1` Sapphire Blue, `N`/`M` Amethyst Purple) with solid canvas-matching background cutout masks to prevent line bleed.
-  - **Real-Time Search & Filtering**: Live search bar to filter entities by name, table name, or field attributes.
-  - **Full Canvas Controls**: Zoom, Pan, Drag individual entity nodes, Fit-to-screen, and Reset view.
+  - **Reset Hidden Entities**: 1-click restore for all hidden entities back to diagram.
+  - **Smart Search & Context Highlighting**: Live search bar to filter entities by name, table name, or field attributes while keeping directly connected entities semi-highlighted to preserve relationship context.
+  - **Full Canvas Controls & Keyboard Shortcuts**:
+    - `F5` / `Ctrl + R`: Refresh ERD diagram from source code.
+    - `F`: Fit diagram to screen.
+    - `Ctrl + 0`: Reset zoom & pan view.
+    - `Ctrl + F`: Focus search field.
+    - `Esc`: Clear search filter & selection.
 - **Export Capabilities**:
   - **Export Mermaid**: Copy standard Mermaid `erDiagram` Markdown syntax with 1 click to clipboard for use in READMEs, Notion, or documentation.
   - **Export PNG Image**: Save high-resolution PNG images of the ERD canvas (including the Module Color Legend overlay).
@@ -26,6 +40,7 @@ An IntelliJ IDEA plugin that visualizes JPA/Hibernate Java entities as an intera
 
 ```text
 @Entity
+@MappedSuperclass
 @Table
 @Id
 @EmbeddedId

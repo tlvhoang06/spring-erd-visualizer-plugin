@@ -20,11 +20,36 @@ object EntityScanner {
         "Table"
     )
 
+    private val MAPPED_SUPERCLASS_ANNOTATIONS = setOf(
+        "javax.persistence.MappedSuperclass",
+        "jakarta.persistence.MappedSuperclass",
+        "MappedSuperclass"
+    )
+
     fun isEntity(psiClass: PsiClass): Boolean {
         if (psiClass.isInterface || psiClass.isEnum || psiClass.isAnnotationType) {
             return false
         }
         return psiClass.annotations.any { annotationMatches(it, ENTITY_ANNOTATIONS) }
+    }
+
+    fun isMappedSuperclass(psiClass: PsiClass): Boolean {
+        if (psiClass.isInterface || psiClass.isEnum || psiClass.isAnnotationType) {
+            return false
+        }
+        return psiClass.annotations.any { annotationMatches(it, MAPPED_SUPERCLASS_ANNOTATIONS) }
+    }
+
+    fun getAllFieldsIncludingSuperclasses(psiClass: PsiClass): List<com.intellij.psi.PsiField> {
+        val allFields = mutableListOf<com.intellij.psi.PsiField>()
+        var current: PsiClass? = psiClass
+        while (current != null && current.qualifiedName != "java.lang.Object") {
+            if (current == psiClass || isMappedSuperclass(current) || isEntity(current)) {
+                allFields.addAll(current.fields)
+            }
+            current = current.superClass
+        }
+        return allFields
     }
 
     fun scanEntity(psiClass: PsiClass): EntityModel? {
@@ -38,7 +63,8 @@ object EntityScanner {
         val fields = mutableListOf<FieldModel>()
         val relationships = mutableListOf<com.github.tlvhoang06.springerdvisualizer.model.RelationshipModel>()
 
-        for (field in psiClass.fields) {
+        val allFields = getAllFieldsIncludingSuperclasses(psiClass)
+        for (field in allFields) {
             if (FieldAnalyzer.isRelationshipField(field)) {
                 val relModel = RelationshipAnalyzer.analyzeRelationship(entityName, field)
                 if (relModel != null) {

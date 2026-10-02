@@ -7,6 +7,12 @@ import com.github.tlvhoang06.springerdvisualizer.model.ErdGraphModel
 import com.github.tlvhoang06.springerdvisualizer.model.FieldModel
 import com.github.tlvhoang06.springerdvisualizer.model.RelationshipModel
 import com.github.tlvhoang06.springerdvisualizer.model.RelationshipType
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.project.Project
+import com.intellij.psi.JavaPsiFacade
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.ui.JBColor
 import java.awt.BasicStroke
 import java.awt.Color
@@ -22,9 +28,14 @@ import java.awt.event.MouseWheelEvent
 import java.awt.geom.Area
 import java.awt.geom.Rectangle2D
 import java.awt.geom.RoundRectangle2D
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
+import javax.swing.SwingUtilities
 
 class ErdCanvasPanel : JPanel() {
+
+    var project: Project? = null
 
     var graphModel: ErdGraphModel = ErdGraphModel()
         private set
@@ -40,6 +51,38 @@ class ErdCanvasPanel : JPanel() {
     private var dragOffset: Point = Point(0, 0)
     private var selectedNodeName: String? = null
     private var hoveredNodeName: String? = null
+
+    val hiddenEntities = mutableSetOf<String>()
+
+    fun resetHiddenEntities() {
+        hiddenEntities.clear()
+        repaint()
+    }
+
+    fun navigateToSource(entity: EntityModel, fieldName: String? = null) {
+        val currentProject = project ?: return
+        val fqName = if (entity.packageName.isNotBlank()) "${entity.packageName}.${entity.name}" else entity.name
+
+        ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().runReadAction {
+                val javaPsiFacade = JavaPsiFacade.getInstance(currentProject)
+                val scope = GlobalSearchScope.projectScope(currentProject)
+                val psiClass = javaPsiFacade.findClass(fqName, scope)
+                    ?: javaPsiFacade.findClasses(entity.name, scope).firstOrNull()
+
+                if (psiClass != null) {
+                    ApplicationManager.getApplication().invokeLater {
+                        if (fieldName != null) {
+                            val field = psiClass.findFieldByName(fieldName, false)
+                            field?.navigate(true) ?: psiClass.navigate(true)
+                        } else {
+                            psiClass.navigate(true)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     var showLegend: Boolean = true
         set(value) {
@@ -133,12 +176,99 @@ class ErdCanvasPanel : JPanel() {
     private val badgeManyBgColor = JBColor(Color(124, 58, 237), Color(139, 92, 246))
     private val badgeManyBorderColor = JBColor(Color(109, 40, 217), Color(192, 132, 252))
 
+    private fun showContextMenu(screenPoint: Point, modelPoint: Point) {
+        val targetNode = nodes.values.firstOrNull { !hiddenEntities.contains(it.entity.name) && it.bounds.contains(modelPoint) } ?: return
+        val entity = targetNode.entity
+
+        val r = targetNode.bounds
+        val relY = modelPoint.y - r.y - ErdLayoutEngine.HEADER_HEIGHT
+        val fieldIndex = if (relY >= 0) relY / ErdLayoutEngine.ROW_HEIGHT else -1
+        val visibleFields = entity.fields
+        val pkFields = visibleFields.filter { it.isPrimaryKey }
+        val normalFields = visibleFields.filter { !it.isPrimaryKey }
+        val allFields = pkFields + normalFields
+        val targetField = if (fieldIndex in 0 until allFields.size) allFields[fieldIndex] else null
+
+        val popup = JPopupMenu()
+
+        // 1. Go to source
+        val navText = if (targetField != null) "Go to Source (${targetField.name})" else "Go to Class (${entity.name})"
+        val gotoItem = JMenuItem(navText, AllIcons.Nodes.Class)
+        gotoItem.addActionListener {
+            navigateToSource(entity, targetField?.name)
+        }
+        popup.add(gotoItem)
+        popup.addSeparator()
+
+        // 2. Focus connected entities
+        val focusItem = JMenuItem("Focus Connected Entities", AllIcons.General.Filter)
+        focusItem.addActionListener {
+            selectedNodeName = entity.name
+            repaint()
+        }
+        popup.add(focusItem)
+
+        // 3. Hide entity
+        val hideItem = JMenuItem("Hide Entity from Diagram", AllIcons.Actions.Cancel)
+        hideItem.addActionListener {
+            hiddenEntities.add(entity.name)
+            repaint()
+        }
+        popup.add(hideItem)
+
+        popup.addSeparator()
+
+        // 4. Copy Entity Class Name
+        val copyClassItem = JMenuItem("Copy Class Name (${entity.name})", AllIcons.Actions.Copy)
+        copyClassItem.addActionListener {
+            CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(entity.name))
+        }
+        popup.add(copyClassItem)
+
+        // 5. Copy Table Name
+        if (!entity.tableName.isNullOrBlank()) {
+            val copyTableItem = JMenuItem("Copy Table Name (${entity.tableName})", AllIcons.Actions.Copy)
+            copyTableItem.addActionListener {
+                CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(entity.tableName))
+            }
+            popup.add(copyTableItem)
+        }
+
+        popup.show(this, screenPoint.x, screenPoint.y)
+    }
+
     init {
         isFocusable = true
         background = canvasBgColor
 
         val mouseHandler = object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                    val modelPoint = screenToModel(e.point)
+                    val clicked = nodes.values.firstOrNull { !hiddenEntities.contains(it.entity.name) && it.bounds.contains(modelPoint) }
+                    if (clicked != null) {
+                        val entity = clicked.entity
+                        val r = clicked.bounds
+                        val relY = modelPoint.y - r.y - ErdLayoutEngine.HEADER_HEIGHT
+                        val fieldIndex = if (relY >= 0) relY / ErdLayoutEngine.ROW_HEIGHT else -1
+                        val visibleFields = entity.fields
+                        val pkFields = visibleFields.filter { it.isPrimaryKey }
+                        val normalFields = visibleFields.filter { !it.isPrimaryKey }
+                        val allFields = pkFields + normalFields
+                        val targetField = if (fieldIndex in 0 until allFields.size) allFields[fieldIndex] else null
+
+                        navigateToSource(entity, targetField?.name)
+                    }
+                }
+            }
+
             override fun mousePressed(e: MouseEvent) {
+                if (e.isPopupTrigger) {
+                    val modelPoint = screenToModel(e.point)
+                    showContextMenu(e.point, modelPoint)
+                    return
+                }
+
                 lastMousePoint = e.point
                 val screenPt = e.point
 
@@ -152,8 +282,7 @@ class ErdCanvasPanel : JPanel() {
                 }
 
                 val modelPoint = screenToModel(screenPt)
-
-                val clicked = nodes.values.firstOrNull { it.bounds.contains(modelPoint) }
+                val clicked = nodes.values.firstOrNull { !hiddenEntities.contains(it.entity.name) && it.bounds.contains(modelPoint) }
                 if (clicked != null) {
                     draggedNode = clicked
                     selectedNodeName = clicked.entity.name
@@ -163,6 +292,16 @@ class ErdCanvasPanel : JPanel() {
                     selectedLegendModule = null
                 }
                 repaint()
+            }
+
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) {
+                    val modelPoint = screenToModel(e.point)
+                    showContextMenu(e.point, modelPoint)
+                    return
+                }
+                draggedNode = null
+                lastMousePoint = null
             }
 
             override fun mouseMoved(e: MouseEvent) {
@@ -181,7 +320,7 @@ class ErdCanvasPanel : JPanel() {
                 }
 
                 val modelPoint = screenToModel(screenPt)
-                val hovered = nodes.values.firstOrNull { it.bounds.contains(modelPoint) }
+                val hovered = nodes.values.firstOrNull { !hiddenEntities.contains(it.entity.name) && it.bounds.contains(modelPoint) }
                 val newHoverName = hovered?.entity?.name
                 if (newHoverName != hoveredNodeName) {
                     hoveredNodeName = newHoverName
@@ -205,12 +344,6 @@ class ErdCanvasPanel : JPanel() {
                     panY += dy
                     repaint()
                 }
-                lastMousePoint = currentPoint
-            }
-
-            override fun mouseReleased(e: MouseEvent) {
-                draggedNode = null
-                lastMousePoint = null
             }
 
             override fun mouseWheelMoved(e: MouseWheelEvent) {
@@ -229,6 +362,50 @@ class ErdCanvasPanel : JPanel() {
         addMouseListener(mouseHandler)
         addMouseMotionListener(mouseHandler)
         addMouseWheelListener(mouseHandler)
+    }
+
+    fun registerKeyboardShortcuts(onRefresh: () -> Unit, onSearchFocus: () -> Unit) {
+        val im = getInputMap(WHEN_IN_FOCUSED_WINDOW)
+        val am = actionMap
+
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F5, 0), "refreshERD")
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, java.awt.event.InputEvent.CTRL_DOWN_MASK), "refreshERD")
+        am.put("refreshERD", object : javax.swing.AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                onRefresh()
+            }
+        })
+
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F, 0), "fitScreen")
+        am.put("fitScreen", object : javax.swing.AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                fitToScreen()
+            }
+        })
+
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_0, java.awt.event.InputEvent.CTRL_DOWN_MASK), "resetView")
+        am.put("resetView", object : javax.swing.AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                resetView()
+            }
+        })
+
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F, java.awt.event.InputEvent.CTRL_DOWN_MASK), "focusSearch")
+        am.put("focusSearch", object : javax.swing.AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                onSearchFocus()
+            }
+        })
+
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "clearSelection")
+        am.put("clearSelection", object : javax.swing.AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                selectedNodeName = null
+                selectedLegendModule = null
+                filterQuery = ""
+                repaint()
+            }
+        })
     }
 
     fun setGraph(graph: ErdGraphModel) {
@@ -354,11 +531,21 @@ class ErdCanvasPanel : JPanel() {
             }
         }
 
+        val matchedEntityNames = if (isFiltering) {
+            nodes.values.filter { n ->
+                n.entity.name.lowercase().contains(query) ||
+                (!n.entity.tableName.isNullOrBlank() && n.entity.tableName!!.lowercase().contains(query)) ||
+                n.entity.fields.any { it.name.lowercase().contains(query) || it.type.lowercase().contains(query) }
+            }.map { it.entity.name }.toSet()
+        } else emptySet()
+
         // Pass 2: Draw entity nodes (cards)
         for (node in nodes.values) {
-            val matchesFilter = !isFiltering || node.entity.name.lowercase().contains(query) ||
-                    (!node.entity.tableName.isNullOrBlank() && node.entity.tableName!!.lowercase().contains(query)) ||
-                    node.entity.fields.any { it.name.lowercase().contains(query) || it.type.lowercase().contains(query) }
+            val matchesFilter = !isFiltering || matchedEntityNames.contains(node.entity.name)
+            val isConnectedToSearchMatch = isFiltering && deduplicatedRels.any { rel ->
+                (matchedEntityNames.contains(rel.sourceEntity) && rel.targetEntity == node.entity.name) ||
+                (matchedEntityNames.contains(rel.targetEntity) && rel.sourceEntity == node.entity.name)
+            }
 
             val isSelected = node.entity.name == selectedNodeName
             val isHovered = node.entity.name == hoveredNodeName
@@ -371,7 +558,7 @@ class ErdCanvasPanel : JPanel() {
 
             val isHighlightedCard = isSelected || isHovered || isModuleMatch || (isFiltering && matchesFilter)
             val isDimmedCard = (activeEntity != null && !isSelected && !isHovered && !isConnected) ||
-                    (isFiltering && !matchesFilter) || isModuleDimmed
+                    (isFiltering && !matchesFilter && !isConnectedToSearchMatch) || isModuleDimmed
 
             drawEntityCard(g2, node, isHighlightedCard, isDimmedCard)
         }
@@ -404,7 +591,7 @@ class ErdCanvasPanel : JPanel() {
         val boxWidth = 250
         val boxHeight = headerHeight + modules.size * itemHeight + padding
 
-        val boxX = width - boxWidth - 16
+        val boxX = 16
         val boxY = 16
 
         legendBounds = Rectangle(boxX, boxY, boxWidth, boxHeight)
@@ -442,7 +629,8 @@ class ErdCanvasPanel : JPanel() {
             val entityList = modules[pkg] ?: emptyList()
             val color = getModuleColor(pkg)
 
-            val itemRect = Rectangle(boxX + 6, yOffset - 16, boxWidth - 12, itemHeight)
+            // Full row hitbox covering swatch, label, and entity count for smooth hovering anywhere on row
+            val itemRect = Rectangle(boxX + 4, yOffset - 17, boxWidth - 8, itemHeight)
             legendItemBounds[pkg] = itemRect
 
             val isHovered = (hoveredLegendModule == pkg)
@@ -565,16 +753,24 @@ class ErdCanvasPanel : JPanel() {
             }
 
             // 6. Draw field rows with per-row horizontal separator lines
-            val pkFields = entity.fields.filter { it.isPrimaryKey }
-            val normalFields = entity.fields.filter { !it.isPrimaryKey }
+            val visibleFields = entity.fields
+            val pkFields = visibleFields.filter { it.isPrimaryKey }
+            val normalFields = visibleFields.filter { !it.isPrimaryKey }
             val allFields = pkFields + normalFields
+            val query = filterQuery
 
             for (i in allFields.indices) {
                 val field = allFields[i]
                 val rowTop = headerSepY + i * ErdLayoutEngine.ROW_HEIGHT
                 val yText = rowTop + 16
 
-                drawFieldRow(g2, r, field, yText, isDimmed)
+                val isFieldSearchMatch = query.isNotEmpty() && (
+                    field.name.lowercase().contains(query) ||
+                    field.type.lowercase().contains(query) ||
+                    (!field.columnName.isNullOrBlank() && field.columnName.lowercase().contains(query))
+                )
+
+                drawFieldRow(g2, r, field, yText, isDimmed, isFieldSearchMatch)
 
                 // Horizontal divider line below EVERY field row (except last)
                 val isLastField = (i == allFields.size - 1)
@@ -596,9 +792,38 @@ class ErdCanvasPanel : JPanel() {
         }
     }
 
-    private fun drawFieldRow(g2: Graphics2D, r: Rectangle, field: FieldModel, yOffset: Int, isDimmed: Boolean) {
-        val fieldTextColor = if (isDimmed) dimmedTextColor else primaryTextColor
-        val fieldTypeColor = if (isDimmed) dimmedTextColor else typeTextColor
+    private fun drawFieldRow(g2: Graphics2D, r: Rectangle, field: FieldModel, yOffset: Int, isDimmed: Boolean, isFieldSearchMatch: Boolean = false) {
+        val rowTop = yOffset - 16
+        val rowHeight = ErdLayoutEngine.ROW_HEIGHT
+
+        // 0. High-visibility Field Search Match Row Highlight Pill
+        if (isFieldSearchMatch && !isDimmed) {
+            val highlightBg = JBColor(Color(254, 243, 199, 180), Color(217, 119, 6, 75)) // Amber/Gold Glowing Pill
+            val highlightBorder = JBColor(Color(245, 158, 11, 200), Color(251, 191, 36, 220)) // Amber border
+
+            g2.color = highlightBg
+            g2.fill(RoundRectangle2D.Float(r.x + 3f, rowTop + 1f, r.width - 6f, rowHeight - 2f, 6f, 6f))
+
+            g2.color = highlightBorder
+            g2.stroke = BasicStroke(1.2f)
+            g2.draw(RoundRectangle2D.Float(r.x + 3f, rowTop + 1f, r.width - 6f, rowHeight - 2f, 6f, 6f))
+        }
+
+        val fieldTextColor = if (isFieldSearchMatch && !isDimmed) {
+            JBColor(Color(180, 83, 9), Color(253, 230, 138)) // Glowing Amber/Gold 200
+        } else if (isDimmed) {
+            dimmedTextColor
+        } else {
+            primaryTextColor
+        }
+
+        val fieldTypeColor = if (isFieldSearchMatch && !isDimmed) {
+            JBColor(Color(180, 83, 9), Color(253, 230, 138))
+        } else if (isDimmed) {
+            dimmedTextColor
+        } else {
+            typeTextColor
+        }
 
         if (field.isPrimaryKey) {
             // Draw Gold Pill Badge for PK
@@ -620,14 +845,14 @@ class ErdCanvasPanel : JPanel() {
             g2.color = fieldTextColor
             g2.drawString(field.name, r.x + 34, yOffset)
         } else {
-            g2.font = Font("Dialog", Font.PLAIN, 11)
+            g2.font = Font("Dialog", if (isFieldSearchMatch) Font.BOLD else Font.PLAIN, 11)
             g2.color = fieldTextColor
             g2.drawString(field.name, r.x + 14, yOffset)
         }
 
         // Datatype = Teal / Sky Blue 400, right-aligned
         g2.color = fieldTypeColor
-        g2.font = Font("Dialog", Font.PLAIN, 11)
+        g2.font = Font("Dialog", if (isFieldSearchMatch) Font.BOLD else Font.PLAIN, 11)
         val typeStr = field.type
         val fm = g2.fontMetrics
         val typeWidth = fm.stringWidth(typeStr)
