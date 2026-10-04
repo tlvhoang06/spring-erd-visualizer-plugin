@@ -176,6 +176,8 @@ class ErdCanvasPanel : JPanel() {
     private val badgeManyBgColor = JBColor(Color(124, 58, 237), Color(139, 92, 246))
     private val badgeManyBorderColor = JBColor(Color(109, 40, 217), Color(192, 132, 252))
 
+    var autoNavigateOnClick: Boolean = false
+
     private fun showContextMenu(screenPoint: Point, modelPoint: Point) {
         val targetNode = nodes.values.firstOrNull { !hiddenEntities.contains(it.entity.name) && it.bounds.contains(modelPoint) } ?: return
         val entity = targetNode.entity
@@ -200,7 +202,16 @@ class ErdCanvasPanel : JPanel() {
         popup.add(gotoItem)
         popup.addSeparator()
 
-        // 2. Focus connected entities
+        // 2. Toggle Auto-Navigate on Click
+        val toggleNavText = if (autoNavigateOnClick) "Disable Single-Click Navigation" else "Enable Single-Click Navigation"
+        val toggleNavItem = JMenuItem(toggleNavText, AllIcons.Actions.EditSource)
+        toggleNavItem.addActionListener {
+            autoNavigateOnClick = !autoNavigateOnClick
+        }
+        popup.add(toggleNavItem)
+        popup.addSeparator()
+
+        // 3. Focus connected entities
         val focusItem = JMenuItem("Focus Connected Entities", AllIcons.General.Filter)
         focusItem.addActionListener {
             selectedNodeName = entity.name
@@ -208,7 +219,7 @@ class ErdCanvasPanel : JPanel() {
         }
         popup.add(focusItem)
 
-        // 3. Hide entity
+        // 4. Hide entity
         val hideItem = JMenuItem("Hide Entity from Diagram", AllIcons.Actions.Cancel)
         hideItem.addActionListener {
             hiddenEntities.add(entity.name)
@@ -218,14 +229,14 @@ class ErdCanvasPanel : JPanel() {
 
         popup.addSeparator()
 
-        // 4. Copy Entity Class Name
+        // 5. Copy Entity Class Name
         val copyClassItem = JMenuItem("Copy Class Name (${entity.name})", AllIcons.Actions.Copy)
         copyClassItem.addActionListener {
             CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(entity.name))
         }
         popup.add(copyClassItem)
 
-        // 5. Copy Table Name
+        // 6. Copy Table Name
         if (!entity.tableName.isNullOrBlank()) {
             val copyTableItem = JMenuItem("Copy Table Name (${entity.tableName})", AllIcons.Actions.Copy)
             copyTableItem.addActionListener {
@@ -243,7 +254,7 @@ class ErdCanvasPanel : JPanel() {
 
         val mouseHandler = object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                if (SwingUtilities.isLeftMouseButton(e)) {
                     val modelPoint = screenToModel(e.point)
                     val clicked = nodes.values.firstOrNull { !hiddenEntities.contains(it.entity.name) && it.bounds.contains(modelPoint) }
                     if (clicked != null) {
@@ -257,7 +268,9 @@ class ErdCanvasPanel : JPanel() {
                         val allFields = pkFields + normalFields
                         val targetField = if (fieldIndex in 0 until allFields.size) allFields[fieldIndex] else null
 
-                        navigateToSource(entity, targetField?.name)
+                        if (e.clickCount == 2 || (e.clickCount == 1 && autoNavigateOnClick)) {
+                            navigateToSource(entity, targetField?.name)
+                        }
                     }
                 }
             }

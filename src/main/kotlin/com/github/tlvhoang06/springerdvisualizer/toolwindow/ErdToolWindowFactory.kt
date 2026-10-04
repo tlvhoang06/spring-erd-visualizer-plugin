@@ -60,6 +60,12 @@ class ErdToolWindowFactory : ToolWindowFactory, DumbAware {
                     canvasPanel.zoomOut()
                 }
             })
+            add(object : com.intellij.openapi.actionSystem.ToggleAction("Auto-Navigate on Click", "Open entity source file when clicking table on ERD diagram", AllIcons.Actions.EditSource), DumbAware {
+                override fun isSelected(e: AnActionEvent): Boolean = canvasPanel.autoNavigateOnClick
+                override fun setSelected(e: AnActionEvent, state: Boolean) {
+                    canvasPanel.autoNavigateOnClick = state
+                }
+            })
             add(object : AnAction("Toggle Module Legend", "Show/hide module color legend panel", AllIcons.Gutter.Colors), DumbAware {
                 override fun actionPerformed(e: AnActionEvent) {
                     canvasPanel.showLegend = !canvasPanel.showLegend
