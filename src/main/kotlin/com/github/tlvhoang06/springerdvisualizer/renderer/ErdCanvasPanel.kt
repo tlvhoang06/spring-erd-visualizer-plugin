@@ -357,6 +357,7 @@ class ErdCanvasPanel : JPanel() {
                     panY += dy
                     repaint()
                 }
+                lastMousePoint = currentPoint
             }
 
             override fun mouseWheelMoved(e: MouseWheelEvent) {
